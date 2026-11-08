@@ -1,0 +1,971 @@
+/**
+ * Tema oscuro "oro" de Tesoro.
+ *
+ * Los tokens y los componentes (campo, botón, chip, ventana) salen del
+ * diseño de referencia de la pantalla de compra rápida; el resto de los
+ * módulos reutiliza los mismos tokens para que todo se vea como un sistema.
+ */
+
+:root {
+  --fondo: #100d09;
+  --panel: #18130d;
+  --superficie: #1c170f;
+  --superficie-alta: #221c12;
+  --borde: #2f2818;
+  --borde-fuerte: #4a3d24;
+  --texto: #f4eee2;
+  --texto-tenue: #9a917e;
+  --texto-debil: #6a6252;
+  --oro: #d3a94a;
+  --oro-claro: #e8c369;
+  --oro-suave: rgba(211, 169, 74, 0.16);
+  --verde: #57c785;
+  --rojo: #e0685f;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--oro);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--oro-claro);
+}
+
+/* ------------------------------------------------------------ barra */
+
+.barra {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 28px 40px 0;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.barra h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--oro);
+}
+
+.barra nav {
+  display: flex;
+  gap: 4px;
+}
+
+.barra nav a {
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--texto-tenue);
+}
+
+.barra nav a:hover {
+  color: var(--texto);
+}
+
+.barra nav a.active {
+  background: var(--superficie);
+  border-color: var(--borde);
+  color: var(--texto);
+  font-weight: 500;
+}
+
+.separador-barra {
+  max-width: 1360px;
+  margin: 24px auto 0;
+  padding: 0 40px;
+}
+
+.separador-barra span {
+  display: block;
+  height: 1px;
+  background: var(--borde);
+}
+
+.estado-conexion {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--texto-tenue);
+}
+
+.estado-conexion .punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--verde);
+  box-shadow: 0 0 0 3px rgba(87, 199, 133, 0.18);
+}
+
+.estado-conexion.sin-conexion .punto {
+  background: var(--rojo);
+  box-shadow: 0 0 0 3px rgba(224, 104, 95, 0.18);
+}
+
+.estado-conexion .pendientes {
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------ layout */
+
+main {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 32px 40px 60px;
+}
+
+.encabezado-pagina {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+  position: relative;
+}
+
+.encabezado-pagina h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+/* Acción principal de las páginas de listado, al extremo derecho. */
+.encabezado-pagina > .boton {
+  margin-left: auto;
+}
+
+.ayuda,
+.parametros {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 13px;
+}
+
+.parametros strong {
+  color: var(--oro);
+}
+
+.nota {
+  margin: 0 0 16px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--texto-debil);
+}
+
+.campos {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+/* Sin esto un `label` de ancho automático colapsa su input al 100 % de nada. */
+.campos > label,
+.campos > div {
+  min-width: 200px;
+}
+
+/* ------------------------------------------------------------ campos */
+
+.etiqueta {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--texto-tenue);
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--texto-tenue);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+/* Etiqueta arriba del campo cuando el texto va suelto dentro del `label`. */
+label > input,
+label > select,
+label > textarea {
+  margin-top: 6px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--texto-debil);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--oro);
+  box-shadow: 0 0 0 3px var(--oro-suave);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.75);
+  cursor: pointer;
+}
+
+.ancho-fecha {
+  width: 220px;
+}
+
+.ancho-cliente {
+  width: 360px;
+}
+
+.fila-cliente {
+  display: flex;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------ botones */
+
+button,
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+button:hover:not(:disabled),
+.boton:hover {
+  background: var(--superficie-alta);
+  border-color: var(--borde-fuerte);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.primario {
+  background: var(--oro);
+  border-color: var(--oro);
+  color: #1a1408;
+  font-weight: 600;
+  padding: 10px 24px;
+}
+
+.primario:hover:not(:disabled) {
+  background: var(--oro-claro);
+  border-color: var(--oro-claro);
+}
+
+.primario:disabled:hover {
+  background: var(--oro);
+  border-color: var(--oro);
+}
+
+.fantasma {
+  background: transparent;
+}
+
+.icono {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Chip de cotización: resumen y acceso a la edición en la misma pantalla. */
+.chip-cotizacion {
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texto-tenue);
+}
+
+.chip-cotizacion:hover:not(:disabled) {
+  background: var(--superficie);
+  border-color: var(--oro);
+  color: var(--texto);
+}
+
+.chip-cotizacion b {
+  color: var(--oro);
+  font-weight: 600;
+}
+
+.chip-cotizacion.sin-definir {
+  border-color: var(--oro);
+  color: var(--oro);
+}
+
+/* ------------------------------------------------------------ capas */
+
+.fondo-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 6, 3, 0.66);
+  z-index: 200;
+}
+
+.tarjeta-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 201;
+  width: min(440px, calc(100vw - 32px));
+  padding: 28px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.tarjeta-modal h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cabecera-modal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.fondo-popover {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: transparent;
+}
+
+.tarjeta-popover {
+  position: absolute;
+  top: 52px;
+  left: 200px;
+  z-index: 151;
+  width: min(300px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+}
+
+.cerrar {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.fila-campos {
+  display: flex;
+  gap: 10px;
+}
+
+.fila-campos > * {
+  flex: 1;
+}
+
+.campo-bloque {
+  margin-bottom: 14px;
+}
+
+/* ------------------------------------------------------------ piezas */
+
+.piezas {
+  margin-top: 40px;
+}
+
+.rejilla-piezas {
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px 96px 130px 130px 1.3fr 36px;
+  gap: 14px;
+  align-items: center;
+}
+
+.rejilla-piezas.cabecera {
+  padding: 0 4px 10px;
+}
+
+.rejilla-piezas.pieza {
+  padding: 6px 4px;
+}
+
+.th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-debil);
+}
+
+.calculado {
+  text-align: center;
+  font-size: 14px;
+  color: var(--texto-debil);
+  font-variant-numeric: tabular-nums;
+}
+
+.calculado.importe {
+  color: var(--texto-tenue);
+  font-weight: 600;
+}
+
+.centrado {
+  text-align: center;
+}
+
+/* Campo con el signo % fijo dentro, para que la unidad no quede a la
+ * interpretación de quien teclea. */
+.campo-porcentaje {
+  position: relative;
+}
+
+.campo-porcentaje input {
+  padding-right: 26px;
+}
+
+.campo-porcentaje span {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--texto-debil);
+  pointer-events: none;
+}
+
+.quitar {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--texto-tenue);
+}
+
+.quitar:hover:not(:disabled) {
+  background: transparent;
+  color: var(--rojo);
+}
+
+.observacion-general {
+  display: block;
+  margin-top: 32px;
+}
+
+.observacion-general textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.pie-compra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--borde);
+}
+
+.total {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.total span {
+  font-size: 13px;
+  color: var(--texto-tenue);
+}
+
+.total strong {
+  font-size: 26px;
+  color: var(--oro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------- listados nuevos */
+
+.titulo-pagina {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.subtitulo {
+  margin: 0 0 28px;
+  max-width: 640px;
+  font-size: 13.5px;
+}
+
+/* Encabezado con texto a la izquierda y acción a la derecha. */
+.encabezado-pagina.bloque {
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.buscador {
+  margin-bottom: 24px;
+}
+
+.tarjetas {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.tarjeta {
+  flex: 1;
+  min-width: 180px;
+  padding: 16px 20px;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.tarjeta-etiqueta {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--texto-debil);
+}
+
+.tarjeta-valor {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarjeta-valor b {
+  color: var(--oro);
+}
+
+.tarjeta-stock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 32px;
+  padding: 16px 20px;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.tarjeta-stock .tarjeta-etiqueta {
+  margin: 0;
+}
+
+.tarjeta-valor-oro {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--oro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chip informativo: mismo aspecto que el de cotización, sin ser botón. */
+.chip-cotizacion.estatico {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--borde);
+  background: var(--superficie);
+  cursor: default;
+}
+
+.rejilla-scroll {
+  overflow-x: auto;
+}
+
+.rejilla-historial,
+.rejilla-ventas {
+  display: grid;
+  gap: 14px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.rejilla-historial {
+  grid-template-columns: 1.4fr 110px 90px 140px 130px 130px 140px;
+  min-width: 980px;
+}
+
+.rejilla-ventas {
+  grid-template-columns: 1.1fr 110px 1.2fr 1fr 110px 130px 130px 140px;
+  min-width: 1080px;
+}
+
+.rejilla-inventario,
+.rejilla-fundicion {
+  display: grid;
+  gap: 14px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.rejilla-inventario {
+  grid-template-columns: 20px 100px 110px 1.5fr 110px 90px 120px 140px 100px;
+  min-width: 1040px;
+}
+
+.rejilla-fundicion {
+  grid-template-columns: 100px 110px 1.5fr 110px 90px 120px 140px;
+  min-width: 860px;
+}
+
+.rejilla-historial.cabecera,
+.rejilla-ventas.cabecera,
+.rejilla-inventario.cabecera,
+.rejilla-fundicion.cabecera {
+  padding: 0 4px 10px;
+}
+
+.rejilla-historial.fila,
+.rejilla-ventas.fila,
+.rejilla-inventario.fila,
+.rejilla-fundicion.fila {
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.rejilla-historial .tenue,
+.rejilla-ventas .tenue,
+.rejilla-inventario .tenue,
+.rejilla-fundicion .tenue {
+  color: var(--texto-tenue);
+  font-variant-numeric: tabular-nums;
+}
+
+.rejilla-historial .destacado,
+.rejilla-ventas .destacado,
+.rejilla-inventario .destacado,
+.rejilla-fundicion .destacado {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fila entera clicable para marcar el lote. */
+.rejilla-inventario.fila {
+  color: var(--texto);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.rejilla-inventario.fila:hover {
+  background: var(--superficie);
+}
+
+.rejilla-inventario.fila.marcado {
+  background: var(--oro-suave);
+}
+
+.rejilla-inventario.fila.consumido {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.rejilla-inventario input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--oro);
+}
+
+.rejilla-venta-lotes {
+  display: grid;
+  grid-template-columns: 90px 1.2fr 110px 80px 100px 90px 110px 130px 120px 120px 36px;
+  gap: 12px;
+  align-items: center;
+  min-width: 1220px;
+}
+
+.rejilla-venta-lotes.cabecera {
+  padding: 0 4px 10px;
+}
+
+.rejilla-venta-lotes.pieza {
+  padding: 6px 4px;
+}
+
+/* Código de lote: es lo que se etiqueta en la pieza y se escanea. */
+.codigo {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+  color: var(--oro);
+}
+
+.recortado {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.insignia {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--oro);
+}
+
+.positivo {
+  color: var(--verde);
+}
+
+.negativo {
+  color: var(--rojo);
+}
+
+.tarjeta-valor small {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.agregar-lote {
+  display: flex;
+  gap: 8px;
+  max-width: 460px;
+  margin-top: 14px;
+}
+
+.filtros {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+}
+
+.filtros button {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: var(--texto-tenue);
+  font-size: 13px;
+}
+
+.filtros button.activo {
+  background: var(--superficie-alta);
+  color: var(--texto);
+}
+
+.estado-pendiente {
+  font-size: 13px;
+  color: var(--oro);
+}
+
+.estado-ok {
+  font-size: 13px;
+  color: var(--texto-tenue);
+}
+
+.vacio {
+  padding: 32px 4px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--texto-debil);
+}
+
+/* Valor calculado que se lee pero no se edita. */
+.lectura {
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie-alta);
+  font-size: 14px;
+  color: var(--texto-tenue);
+  font-variant-numeric: tabular-nums;
+}
+
+.lectura.fuerte {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.campos.alineado-arriba {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.campos.alineado-arriba > div {
+  min-width: 0;
+}
+
+input.con-error,
+input.con-error:focus {
+  border-color: var(--rojo);
+  box-shadow: none;
+}
+
+.advertencia {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--rojo);
+}
+
+/* ------------------------------------------------------------ tablas */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--borde);
+  color: var(--texto-debil);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.importe {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+tr.anulada {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.provisional {
+  color: var(--oro);
+  font-style: italic;
+}
+
+/* ------------------------------------------------------------ varios */
+
+.errores {
+  margin: 20px 0 0;
+  padding: 12px 16px 12px 32px;
+  border-left: 3px solid var(--rojo);
+  border-radius: 0 8px 8px 0;
+  background: var(--superficie);
+  color: var(--rojo);
+  font-size: 13px;
+}
+
+.referencia {
+  font-size: 13px;
+  color: var(--texto-tenue);
+}
+
+.referencia strong {
+  color: var(--oro);
+}
+
+.aviso {
+  padding: 32px;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+  text-align: center;
+}
+
+.aviso h2 {
+  margin-top: 0;
+  color: var(--oro);
+}
+
+@media (max-width: 900px) {
+  .barra,
+  .separador-barra,
+  main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .ancho-fecha,
+  .ancho-cliente {
+    width: 100%;
+  }
+
+  .piezas {
+    overflow-x: auto;
+  }
+
+  .rejilla-piezas {
+    min-width: 900px;
+  }
+
+  .tarjeta-popover {
+    left: 0;
+  }
+}

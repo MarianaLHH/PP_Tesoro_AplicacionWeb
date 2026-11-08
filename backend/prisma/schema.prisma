@@ -1,0 +1,418 @@
+// Esquema de datos — Sistema de registro de compra y venta de oro
+//
+// Convenciones:
+//  - Todo identificador es UUID generado en el CLIENTE (soporte offline / idempotencia).
+//  - Los IMPORTES usan Decimal(18,2)  -> 2 decimales.
+//  - Los PESOS   usan Decimal(14,3)  -> 3 decimales (gramos).
+//  - La LEY      usa  Decimal(6,4)   -> ej. 0.8700
+//  - Nada se borra: se anula con estado + contraasiento.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- Identidad
+
+enum Rol {
+  ADMIN
+  OPERADOR
+  AUDITOR
+}
+
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  rol          Rol      @default(OPERADOR)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cotizaciones Cotizacion[]
+  compras      Compra[]
+  ventas       Venta[]
+  cajaSesiones CajaSesion[]
+  auditorias   Auditoria[]
+
+  @@map("usuario")
+}
+
+// ---------------------------------------------------------------- Personas
+
+/// Persona natural a la que se le COMPRA el oro.
+/// Corresponde a la columna "COMPRADOR" del Excel original.
+model Cliente {
+  id        String   @id @default(uuid()) @db.Uuid
+  nombre    String
+  ci        String?
+  telefono  String?
+  direccion String?
+  notas     String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  compras Compra[]
+
+  @@index([nombre])
+  @@map("cliente")
+}
+
+/// Empresa a la que se le VENDE el oro.
+model Exportador {
+  id          String   @id @default(uuid()) @db.Uuid
+  razonSocial String   @map("razon_social")
+  nit         String?
+  contacto    String?
+  telefono    String?
+  paisDestino String?  @map("pais_destino")
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ventas Venta[]
+
+  @@map("exportador")
+}
+
+// ---------------------------------------------------------------- Cotización
+
+/// Parámetros globales de valoración vigentes.
+/// Cada operación COPIA estos valores; nunca los referencia.
+/// (En el Excel eran celdas vivas: cambiarlas recalculaba el histórico.)
+model Cotizacion {
+  id            String   @id @default(uuid()) @db.Uuid
+  fecha         DateTime
+  onzaCierreUsd Decimal  @map("onza_cierre_usd") @db.Decimal(18, 2)
+  tipoCambio    Decimal  @map("tipo_cambio") @db.Decimal(18, 4)
+  usuarioId     String   @map("usuario_id") @db.Uuid
+  createdAt     DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([fecha])
+  @@map("cotizacion")
+}
+
+// ---------------------------------------------------------------- Compra
+
+enum EstadoOperacion {
+  BORRADOR
+  CONFIRMADA
+  ANULADA
+}
+
+enum Moneda {
+  BOB
+  USD
+}
+
+model Compra {
+  id            String          @id @default(uuid()) @db.Uuid
+  /// Correlativo definitivo. Lo asigna el SERVIDOR al sincronizar.
+  numero        Int?            @unique
+  /// Número provisional mostrado mientras la operación está offline.
+  numeroLocal   String?         @map("numero_local")
+  fecha         DateTime
+  clienteId     String          @map("cliente_id") @db.Uuid
+  /// Parámetros congelados al confirmar.
+  onzaCierreUsd Decimal         @map("onza_cierre_usd") @db.Decimal(18, 2)
+  tipoCambio    Decimal         @map("tipo_cambio") @db.Decimal(18, 4)
+  totalBs       Decimal         @map("total_bs") @db.Decimal(18, 2)
+  estado        EstadoOperacion @default(BORRADOR)
+  observacion   String?
+  cajaSesionId  String?         @map("caja_sesion_id") @db.Uuid
+  usuarioId     String          @map("usuario_id") @db.Uuid
+  dispositivoId String?         @map("dispositivo_id")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  cliente    Cliente      @relation(fields: [clienteId], references: [id])
+  usuario    Usuario      @relation(fields: [usuarioId], references: [id])
+  cajaSesion CajaSesion?  @relation(fields: [cajaSesionId], references: [id])
+  items      CompraItem[]
+  /// Todas las piezas de una compra se funden en una sola: un lote por compra.
+  lote       Lote?
+
+  @@index([fecha])
+  @@index([clienteId])
+  @@map("compra")
+}
+
+model CompraItem {
+  id       String @id @default(uuid()) @db.Uuid
+  compraId String @map("compra_id") @db.Uuid
+
+  /// PESO A/F — peso antes de fundir. Opcional: no siempre se funde.
+  pesoAntesFundirG   Decimal? @map("peso_antes_fundir_g") @db.Decimal(14, 3)
+  /// PESO D/F — peso después de fundir. Es el peso que se paga.
+  pesoDespuesFundirG Decimal  @map("peso_despues_fundir_g") @db.Decimal(14, 3)
+  /// Derivado: pesoAntesFundirG - pesoDespuesFundirG
+  mermaG             Decimal? @map("merma_g") @db.Decimal(14, 3)
+
+  ley         Decimal @db.Decimal(6, 4)
+  /// (onzaCierreUsd * ley) / 31.1035 * tipoCambio
+  bsPorGramo  Decimal @map("bs_por_gramo") @db.Decimal(18, 2)
+  /// pesoDespuesFundirG * bsPorGramo
+  totalBs     Decimal @map("total_bs") @db.Decimal(18, 2)
+  /// Peso fino contenido: pesoDespuesFundirG * ley. Alimenta el inventario.
+  pesoFinoG   Decimal @map("peso_fino_g") @db.Decimal(14, 3)
+  observacion String?
+
+  compra Compra @relation(fields: [compraId], references: [id], onDelete: Cascade)
+
+  @@index([compraId])
+  @@map("compra_item")
+}
+
+// ---------------------------------------------------------------- Inventario
+
+/// Un lote siempre se funde o se vende COMPLETO: no hay estado parcial.
+enum EstadoLote {
+  DISPONIBLE
+  FUNDIDO
+  VENDIDO
+}
+
+enum OrigenLote {
+  COMPRA
+  FUNDICION
+}
+
+/// Pieza física de oro en caja fuerte. Nace de una compra o de una fundición
+/// conjunta. Ley y fino son ESTIMADOS: la ley real la mide el comprador al vender.
+model Lote {
+  id                 String     @id @default(uuid()) @db.Uuid
+  /// Código corto que se etiqueta en la pieza y lee la pistola (L-3FA9C1).
+  codigo             String     @unique
+  origen             OrigenLote
+  compraId           String?    @unique @map("compra_id") @db.Uuid
+  /// Fundición que lo PRODUJO (origen = FUNDICION).
+  fundicionOrigenId  String?    @unique @map("fundicion_origen_id") @db.Uuid
+  /// Fundición que lo CONSUMIÓ (estado = FUNDIDO).
+  fundicionDestinoId String?    @map("fundicion_destino_id") @db.Uuid
+  fecha              DateTime
+  pesoBrutoG         Decimal    @map("peso_bruto_g") @db.Decimal(14, 3)
+  pesoFinoG          Decimal    @map("peso_fino_g") @db.Decimal(14, 3)
+  leyEstimada        Decimal    @map("ley_estimada") @db.Decimal(6, 4)
+  /// Lo pagado por el material (suma de compras). Se arrastra hasta la venta.
+  costoBs            Decimal    @map("costo_bs") @db.Decimal(18, 2)
+  estado             EstadoLote @default(DISPONIBLE)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  compra           Compra?                @relation(fields: [compraId], references: [id])
+  fundicionOrigen  Fundicion?             @relation("LoteResultante", fields: [fundicionOrigenId], references: [id])
+  fundicionDestino Fundicion?             @relation("LotesFundidos", fields: [fundicionDestinoId], references: [id])
+  movimientos      MovimientoInventario[]
+  ventaItem        VentaItem?
+
+  @@index([estado])
+  @@map("lote")
+}
+
+/// Fundición conjunta: varios lotes (de cualquier día y cliente) -> un lote nuevo.
+model Fundicion {
+  id               String          @id @default(uuid()) @db.Uuid
+  fecha            DateTime
+  pesoBrutoOrigenG Decimal         @map("peso_bruto_origen_g") @db.Decimal(14, 3)
+  pesoResultanteG  Decimal         @map("peso_resultante_g") @db.Decimal(14, 3)
+  mermaG           Decimal         @map("merma_g") @db.Decimal(14, 3)
+  /// Se conserva el fino de los lotes de origen; la ley estimada sube.
+  pesoFinoG        Decimal         @map("peso_fino_g") @db.Decimal(14, 3)
+  leyEstimada      Decimal         @map("ley_estimada") @db.Decimal(6, 4)
+  costoBs          Decimal         @map("costo_bs") @db.Decimal(18, 2)
+  estado           EstadoOperacion @default(CONFIRMADA)
+  observacion      String?
+  usuarioId        String          @map("usuario_id") @db.Uuid
+  dispositivoId    String?         @map("dispositivo_id")
+  createdAt        DateTime        @default(now())
+
+  lotesFundidos  Lote[] @relation("LotesFundidos")
+  loteResultante Lote?  @relation("LoteResultante")
+
+  @@index([fecha])
+  @@map("fundicion")
+}
+
+enum TipoMovimientoInventario {
+  ENTRADA_COMPRA
+  SALIDA_VENTA
+  MERMA
+  AJUSTE
+  ANULACION
+}
+
+/// Append-only. El saldo de un lote es la suma de sus movimientos.
+model MovimientoInventario {
+  id             String                   @id @default(uuid()) @db.Uuid
+  loteId         String                   @map("lote_id") @db.Uuid
+  tipo           TipoMovimientoInventario
+  /// Con signo: positivo entra, negativo sale.
+  pesoFinoG      Decimal                  @map("peso_fino_g") @db.Decimal(14, 3)
+  referenciaTipo String?                  @map("referencia_tipo")
+  referenciaId   String?                  @map("referencia_id") @db.Uuid
+  fecha          DateTime
+  usuarioId      String                   @map("usuario_id") @db.Uuid
+  createdAt      DateTime                 @default(now())
+
+  lote Lote @relation(fields: [loteId], references: [id])
+
+  @@index([loteId])
+  @@index([fecha])
+  @@map("movimiento_inventario")
+}
+
+// ---------------------------------------------------------------- Venta
+
+model Venta {
+  id           String   @id @default(uuid()) @db.Uuid
+  numero       Int?     @unique
+  numeroLocal  String?  @map("numero_local")
+  fecha        DateTime
+  exportadorId String   @map("exportador_id") @db.Uuid
+
+  moneda        Moneda  @default(USD)
+  /// Onza y tipo de cambio los fija el comprador en cada venta.
+  onzaCierreUsd Decimal @map("onza_cierre_usd") @db.Decimal(18, 2)
+  tipoCambio    Decimal @map("tipo_cambio") @db.Decimal(18, 4)
+
+  totalUsd   Decimal @map("total_usd") @db.Decimal(18, 2)
+  totalBs    Decimal @map("total_bs") @db.Decimal(18, 2)
+  costoBs    Decimal @map("costo_bs") @db.Decimal(18, 2)
+  gananciaBs Decimal @map("ganancia_bs") @db.Decimal(18, 2)
+
+  estado        EstadoOperacion @default(BORRADOR)
+  observacion   String?
+  cajaSesionId  String?         @map("caja_sesion_id") @db.Uuid
+  usuarioId     String          @map("usuario_id") @db.Uuid
+  dispositivoId String?         @map("dispositivo_id")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  exportador Exportador  @relation(fields: [exportadorId], references: [id])
+  usuario    Usuario     @relation(fields: [usuarioId], references: [id])
+  cajaSesion CajaSesion? @relation(fields: [cajaSesionId], references: [id])
+  items      VentaItem[]
+
+  @@index([fecha])
+  @@map("venta")
+}
+
+/// Un lote vendido COMPLETO, liquidado con la ley que midió el comprador.
+model VentaItem {
+  id      String @id @default(uuid()) @db.Uuid
+  ventaId String @map("venta_id") @db.Uuid
+  /// Único: un lote se vende una sola vez.
+  loteId  String @unique @map("lote_id") @db.Uuid
+
+  pesoG             Decimal @map("peso_g") @db.Decimal(14, 3)
+  /// Ley medida por el comprador.
+  ley               Decimal @db.Decimal(6, 4)
+  pesoFinoG         Decimal @map("peso_fino_g") @db.Decimal(14, 3)
+  /// Fino que el negocio estimaba; la diferencia con pesoFinoG es ganancia o pérdida de ley.
+  pesoFinoEstimadoG Decimal @map("peso_fino_estimado_g") @db.Decimal(14, 3)
+  bsPorGramo        Decimal @map("bs_por_gramo") @db.Decimal(18, 2)
+  precioGramoUsd    Decimal @map("precio_gramo_usd") @db.Decimal(18, 2)
+  /// Lo que paga el comprador.
+  totalBs           Decimal @map("total_bs") @db.Decimal(18, 2)
+  /// Equivalente en dólares, de referencia.
+  totalUsd          Decimal @map("total_usd") @db.Decimal(18, 2)
+  /// Costo del oro vendido, arrastrado del lote. Permite calcular la ganancia real.
+  costoBs           Decimal @map("costo_bs") @db.Decimal(18, 2)
+
+  venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  lote  Lote  @relation(fields: [loteId], references: [id])
+
+  @@index([ventaId])
+  @@map("venta_item")
+}
+
+// ---------------------------------------------------------------- Caja
+
+model CajaSesion {
+  id                  String    @id @default(uuid()) @db.Uuid
+  fechaApertura       DateTime  @map("fecha_apertura")
+  fechaCierre         DateTime? @map("fecha_cierre")
+  saldoInicial        Decimal   @map("saldo_inicial") @db.Decimal(18, 2)
+  saldoFinalDeclarado Decimal?  @map("saldo_final_declarado") @db.Decimal(18, 2)
+  saldoFinalCalculado Decimal?  @map("saldo_final_calculado") @db.Decimal(18, 2)
+  diferencia          Decimal?  @db.Decimal(18, 2)
+  usuarioId           String    @map("usuario_id") @db.Uuid
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  usuario     Usuario          @relation(fields: [usuarioId], references: [id])
+  movimientos CajaMovimiento[]
+  compras     Compra[]
+  ventas      Venta[]
+
+  @@map("caja_sesion")
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+}
+
+model CajaMovimiento {
+  id             String             @id @default(uuid()) @db.Uuid
+  cajaSesionId   String             @map("caja_sesion_id") @db.Uuid
+  tipo           TipoMovimientoCaja
+  concepto       String
+  monto          Decimal            @db.Decimal(18, 2)
+  moneda         Moneda             @default(BOB)
+  referenciaTipo String?            @map("referencia_tipo")
+  referenciaId   String?            @map("referencia_id") @db.Uuid
+  fecha          DateTime
+  createdAt      DateTime           @default(now())
+
+  cajaSesion CajaSesion @relation(fields: [cajaSesionId], references: [id])
+
+  @@index([cajaSesionId])
+  @@map("caja_movimiento")
+}
+
+// ---------------------------------------------------------------- Auditoría
+
+enum AccionAuditoria {
+  CREAR
+  EDITAR
+  ANULAR
+}
+
+/// Append-only. Registra qué cambió, quién y cuándo.
+/// Los importes son editables por decisión del cliente; esta tabla es la contrapartida.
+model Auditoria {
+  id            String          @id @default(uuid()) @db.Uuid
+  entidad       String
+  entidadId     String          @map("entidad_id") @db.Uuid
+  accion        AccionAuditoria
+  datosAntes    Json?           @map("datos_antes")
+  datosDespues  Json?           @map("datos_despues")
+  usuarioId     String          @map("usuario_id") @db.Uuid
+  dispositivoId String?         @map("dispositivo_id")
+  fecha         DateTime        @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([entidad, entidadId])
+  @@index([fecha])
+  @@map("auditoria")
+}
+
+// ---------------------------------------------------------------- Sincronización
+
+/// Correlativos por tipo de documento. Sólo el servidor los avanza.
+model Correlativo {
+  tipo   String @id
+  ultimo Int    @default(0)
+
+  @@map("correlativo")
+}

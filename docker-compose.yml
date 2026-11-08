@@ -1,0 +1,42 @@
+# Entorno completo en local con un solo comando:
+#   docker compose up --build
+# PWA + API en http://localhost:3000   ·   PostgreSQL en localhost:5433
+#
+# Sólo la base (para desarrollar con `npm run dev:api` / `npm run dev:web`):
+#   docker compose up -d db
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tesoro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tesoro}
+      POSTGRES_DB: tesoro
+    volumes:
+      - datos:/var/lib/postgresql
+    ports:
+      # 5433 para no chocar con el PostgreSQL instalado en Windows (5432).
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tesoro -d tesoro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tesoro:${POSTGRES_PASSWORD:-tesoro}@db:5432/tesoro?schema=public
+      JWT_SECRET: ${JWT_SECRET:-cambiar-en-produccion}
+      JWT_EXPIRES_IN: 8h
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  datos:

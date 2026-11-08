@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+.git
+.vscode
+.claude
+docs
+# Datos reales del cliente: nunca dentro de la imagen.
+*.xlsx
