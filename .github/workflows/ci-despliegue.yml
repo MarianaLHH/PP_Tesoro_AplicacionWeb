@@ -1,0 +1,88 @@
+# CI y despliegue continuo de Tesoro.
+# - En cada PR y push a main: instala, prueba y compila (job "pruebas").
+# - En push a main: el servidor (Lightsail capibara-apps) detecta el commit con "pruebas" en verde,
+#   lo despliega y publica el estado en https://tesoro.capibaradigital.com/_despliegue.
+#   El job "despliegue" espera ese resultado, así el estado del despliegue se ve aquí.
+name: CI y despliegue
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar cliente de Prisma
+        run: npx prisma generate --schema backend/prisma/schema.prisma
+
+      - name: Compilar el dominio compartido
+        run: npm run build:shared
+
+      - name: Pruebas
+        run: npm test
+
+      - name: Compilar API y PWA (igual que la imagen Docker)
+        run: npm run build
+
+  despliegue:
+    needs: pruebas
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: produccion
+      url: https://tesoro.capibaradigital.com
+    steps:
+      - name: Esperar a que el servidor despliegue este commit
+        env:
+          URL_ESTADO: https://tesoro.capibaradigital.com/_despliegue
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Esperando a que el servidor despliegue ${SHA::7}..."
+          for _ in $(seq 1 72); do   # hasta 18 minutos
+            json=$(curl -fsS --max-time 10 "$URL_ESTADO" || echo '{}')
+            sha=$(jq -r '.sha // ""' <<<"$json")
+            estado=$(jq -r '.estado // ""' <<<"$json")
+            mensaje=$(jq -r '.mensaje // ""' <<<"$json")
+            if [ "$sha" = "$SHA" ]; then
+              echo "[$estado] $mensaje"
+              case "$estado" in
+                desplegado) exit 0 ;;
+                fallido|ci-fallido) echo "::error::$mensaje"; exit 1 ;;
+              esac
+            elif [ "$(gh api "repos/$REPO/commits/main" --jq .sha)" != "$SHA" ]; then
+              echo "Hay un commit más nuevo en main; el servidor desplegará ese en lugar de ${SHA::7}."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::El servidor no desplegó ${SHA::7} en 18 minutos"
+          exit 1
+
+      - name: Verificar la app en producción
+        run: curl -fsS --max-time 10 https://tesoro.capibaradigital.com/api/salud
