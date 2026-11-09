@@ -10,7 +10,13 @@ import {
   type Fundicion as RegistroFundicion,
   type Lote,
 } from '../db/db';
+import Decimal from 'decimal.js';
+import { leerNumero } from '../entrada';
 import { fechaCorta, importe, leyPorcentaje, numero, peso } from '../formato';
+
+/** Lo que entra al horno: referencia para pesar la pieza resultante. */
+const sumaBruta = (lotes: Lote[]) =>
+  lotes.reduce((suma, l) => suma.plus(l.pesoBrutoG), new Decimal(0));
 
 /**
  * Fundición conjunta: varios lotes, posiblemente de días y clientes distintos,
@@ -41,10 +47,12 @@ export default function Fundicion() {
   const noDisponibles = lotes?.filter((l) => l.estado !== 'DISPONIBLE') ?? [];
 
   const calculo = useMemo(() => {
-    if (!lotes || !pesoResultante) return { resultado: null, error: '' };
+    const leido = leerNumero(pesoResultante, 'peso');
+    if (leido.error) return { resultado: null, error: leido.error };
+    if (!lotes || !leido.valor) return { resultado: null, error: '' };
     try {
       return {
-        resultado: calcularFundicion({ lotes, pesoResultanteG: pesoResultante }),
+        resultado: calcularFundicion({ lotes, pesoResultanteG: leido.valor }),
         error: '',
       };
     } catch (e) {
@@ -179,7 +187,8 @@ export default function Fundicion() {
               inputMode="decimal"
               autoFocus
               className={calculo.error ? 'con-error' : ''}
-              placeholder={resultado?.pesoBrutoOrigenG.toString() ?? '0.00'}
+              aria-invalid={!!calculo.error}
+              placeholder={lotes ? peso(sumaBruta(lotes)) : '0,00'}
               value={pesoResultante}
               onChange={(e) => setPesoResultante(e.target.value)}
             />

@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import {
-  calcularCompraItem,
-  calcularTotalCompra,
-  porcentajeALey,
-} from '@tesoro/dominio';
+import { calcularCompraItem, calcularTotalCompra } from '@tesoro/dominio';
 import {
   cotizacionVigente,
   db,
@@ -13,11 +9,20 @@ import {
   fechaHoy,
   loteDeCompra,
   numeroProvisional,
+  registrarCotizacion,
   type Compra,
   type CompraItem,
 } from '../db/db';
-import { importe } from '../formato';
-import { IconoCruz, IconoLapiz, IconoMas } from '../componentes/Iconos';
+import {
+  avisoDeVariacion,
+  claseError,
+  leerLey,
+  leerNumero,
+  type Lectura,
+} from '../entrada';
+import Decimal from 'decimal.js';
+import { importe, numero } from '../formato';
+import { IconoCruz, IconoMas } from '../componentes/Iconos';
 
 /**
  * Fila del formulario, con los pesos y la ley tal como los teclea el operador.
@@ -42,28 +47,124 @@ const filaVacia = (): FilaBorrador => ({
   observacion: '',
 });
 
-/** Fracción de ley a partir del porcentaje tecleado; `null` si no es válido. */
-function leyDesdePorcentaje(porcentaje: string) {
-  let ley;
+/** Lo que se entendió de cada campo numérico de una fila. */
+interface LecturaFila {
+  antes: Lectura;
+  despues: Lectura;
+  ley: Lectura;
+}
+
+const SIN_LECTURA: Lectura = { valor: null, error: null };
+
+/** Pasado este tiempo, la cotización vigente se marca para revisar. */
+const ANTIGUEDAD_REVISAR_MS = 2 * 60 * 60 * 1000;
+
+/** Valor guardado ("11.5") tal como se escribe en el campo ("11,5"). */
+const paraCampo = (valor: string) => valor.replace('.', ',');
+
+/**
+ * Diferencia relativa de `nuevo` respecto de `anterior` (0.009 = +0,9 %).
+ * null si no hay con qué comparar o si el valor no cambió.
+ */
+function variacion(nuevo: string | null, anterior: string | undefined): Decimal | null {
+  if (!nuevo || !anterior) return null;
   try {
-    ley = porcentajeALey(porcentaje);
+    const previo = new Decimal(anterior);
+    if (previo.isZero() || previo.equals(nuevo)) return null;
+    return new Decimal(nuevo).minus(previo).dividedBy(previo);
   } catch {
     return null;
   }
-  if (!ley.isFinite() || ley.lessThanOrEqualTo(0) || ley.greaterThan(1)) {
-    return null;
-  }
-  return ley;
+}
+
+/** "+0,9 %" / "−2,1 %". */
+function textoVariacion(cambio: Decimal): string {
+  const signo = cambio.isNegative() ? '−' : '+';
+  return `${signo}${numero(cambio.abs().times(100), 1)} %`;
+}
+
+/** "hace un momento", "hace 25 min", "hace 3 h", "hace 2 días". */
+function haceCuanto(ms: number): string {
+  const min = Math.floor(ms / 60_000);
+  if (min < 1) return 'hace un momento';
+  if (min < 60) return `hace ${min} min`;
+  const horas = Math.floor(min / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
+/**
+ * Onza o T/C de la compra. Viene con la cotización vigente; si el operador
+ * lo cambia, se marca "Modificado" y muestra el valor anterior.
+ */
+function CampoCotizacion({
+  etiqueta,
+  placeholder,
+  valor,
+  lectura,
+  cambio,
+  anterior,
+  antigua,
+  onCambiar,
+}: {
+  etiqueta: string;
+  placeholder: string;
+  valor: string;
+  lectura: Lectura;
+  cambio: Decimal | null;
+  anterior: string | undefined;
+  antigua: boolean;
+  onCambiar: (valor: string) => void;
+}) {
+  const modificado = cambio !== null;
+  const clases = [
+    claseError(lectura),
+    modificado ? 'modificado' : antigua ? 'antiguo' : '',
+  ].join(' ');
+
+  return (
+    <label className="campo-cotizacion">
+      <span className="etiqueta">
+        {etiqueta}
+        {modificado && <span className="insignia">Modificado</span>}
+      </span>
+      <input
+        inputMode="decimal"
+        placeholder={placeholder}
+        className={clases}
+        aria-invalid={!!lectura.error}
+        value={valor}
+        onChange={(e) => onCambiar(e.target.value)}
+      />
+      {modificado && anterior && (
+        <span className="antes">
+          Antes {importe(anterior)} ({textoVariacion(cambio)})
+        </span>
+      )}
+    </label>
+  );
+}
+
+/** Hora actual, refrescada cada 30 s para que "hace X min" avance solo. */
+function useAhora(): number {
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const intervalo = setInterval(() => setAhora(Date.now()), 30_000);
+    return () => clearInterval(intervalo);
+  }, []);
+  return ahora;
 }
 
 /**
  * Registro de compra en una sola pantalla.
  *
  * El operador no debería tener que salir de aquí para atender al cliente que
- * tiene enfrente: la cotización se ajusta en el chip del encabezado y un
- * cliente nuevo se da de alta en la ventana del selector. Ambas acciones
- * escriben en sus propias tablas y en la cola de salida, así que Cotización y
- * Clientes siguen siendo el historial completo para auditoría.
+ * tiene enfrente: la onza y el T/C vienen de la cotización vigente y se
+ * corrigen en el mismo formulario, y un cliente nuevo se da de alta en la
+ * ventana del selector. Ambas acciones escriben en sus propias tablas y en la
+ * cola de salida, así que Cotización y Clientes siguen siendo el historial
+ * completo para auditoría.
  */
 export default function NuevaCompra() {
   const navegar = useNavigate();
@@ -79,11 +180,25 @@ export default function NuevaCompra() {
   const [filas, setFilas] = useState<FilaBorrador[]>([filaVacia()]);
   const [guardando, setGuardando] = useState(false);
 
-  // --- cotización en línea -------------------------------------------------
-  const [editandoCotizacion, setEditandoCotizacion] = useState(false);
-  const [borradorOnza, setBorradorOnza] = useState('');
-  const [borradorTipoCambio, setBorradorTipoCambio] = useState('');
-  const [guardandoCotizacion, setGuardandoCotizacion] = useState(false);
+  // --- cotización en el formulario ----------------------------------------
+  // Los campos arrancan con la cotización vigente. Mientras el operador no
+  // los toque, siguen a la vigente (p. ej. si llega una nueva por sincronización).
+  const [onza, setOnza] = useState('');
+  const [tipoCambio, setTipoCambio] = useState('');
+  const [cotizacionEditada, setCotizacionEditada] = useState(false);
+  const ahora = useAhora();
+
+  useEffect(() => {
+    if (cotizacionEditada || !cotizacion) return;
+    setOnza(paraCampo(cotizacion.onzaCierreUsd));
+    setTipoCambio(paraCampo(cotizacion.tipoCambio));
+  }, [cotizacion, cotizacionEditada]);
+
+  function restablecerCotizacion() {
+    setOnza(cotizacion ? paraCampo(cotizacion.onzaCierreUsd) : '');
+    setTipoCambio(cotizacion ? paraCampo(cotizacion.tipoCambio) : '');
+    setCotizacionEditada(false);
+  }
 
   // --- alta rápida de cliente ---------------------------------------------
   const [creandoCliente, setCreandoCliente] = useState(false);
@@ -92,111 +207,134 @@ export default function NuevaCompra() {
   const [nuevoTelefono, setNuevoTelefono] = useState('');
   const [guardandoCliente, setGuardandoCliente] = useState(false);
 
-  /** Escape cierra la capa abierta; primero la de encima. */
+  /** Escape cierra la ventana de nuevo cliente. */
   useEffect(() => {
-    if (!editandoCotizacion && !creandoCliente) return;
+    if (!creandoCliente) return;
     const alTeclear = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (creandoCliente) setCreandoCliente(false);
-      else setEditandoCotizacion(false);
+      if (e.key === 'Escape') setCreandoCliente(false);
     };
     window.addEventListener('keydown', alTeclear);
     return () => window.removeEventListener('keydown', alTeclear);
-  }, [editandoCotizacion, creandoCliente]);
+  }, [creandoCliente]);
 
   const actualizarFila = (id: string, campo: keyof FilaBorrador, valor: string) =>
     setFilas((prev) =>
       prev.map((f) => (f.id === id ? { ...f, [campo]: valor } : f)),
     );
 
+  const onzaLeida = leerNumero(onza, 'onza');
+  const tcLeido = leerNumero(tipoCambio, 'tipoCambio');
+  const cotizacionValida = !!onzaLeida.valor && !!tcLeido.valor;
+
+  /** Cambio de cada campo respecto de la vigente; null si no cambió. */
+  const cambioOnza = variacion(onzaLeida.valor, cotizacion?.onzaCierreUsd);
+  const cambioTc = variacion(tcLeido.valor, cotizacion?.tipoCambio);
+  /** Al registrar, se guarda también una cotización nueva. */
+  const cotizacionNueva =
+    cotizacionValida && (!cotizacion || cambioOnza !== null || cambioTc !== null);
+
+  /**
+   * Tiempo desde la última compra registrada en este dispositivo (sin contar
+   * anuladas). Si pasó mucho, el precio pudo moverse y conviene revisarlo.
+   */
+  const ultimaCompra = useLiveQuery(async () => {
+    let ultima = '';
+    await db.compras.each((c) => {
+      if (c.estado !== 'ANULADA' && c.actualizadoEn > ultima) ultima = c.actualizadoEn;
+    });
+    return ultima || null;
+  }, []);
+  const edadMs = ultimaCompra ? ahora - new Date(ultimaCompra).getTime() : 0;
+  const cotizacionAntigua = !!ultimaCompra && edadMs > ANTIGUEDAD_REVISAR_MS;
+
+  const avisosCotizacion = [
+    avisoDeVariacion(onzaLeida.valor, cotizacion?.onzaCierreUsd, 'La onza'),
+    avisoDeVariacion(tcLeido.valor, cotizacion?.tipoCambio, 'El tipo de cambio'),
+  ].filter(Boolean);
+
   /**
    * Liquidación en vivo. Se recalcula con cada tecla usando exactamente las
    * mismas funciones que el backend — de ahí el paquete compartido.
    */
   const liquidacion = useMemo(() => {
-    if (!cotizacion) return { items: [], totalBs: '0', errores: [] as string[] };
-
     const items: (CompraItem & { filaId: string })[] = [];
     const errores: string[] = [];
+    const lecturas = new Map<string, LecturaFila>();
 
-    for (const fila of filas) {
-      if (!fila.pesoDespuesFundirG || !fila.leyPorcentaje) continue;
+    for (const l of [onzaLeida, tcLeido]) {
+      if (l.error) errores.push(l.error);
+    }
 
-      const ley = leyDesdePorcentaje(fila.leyPorcentaje);
-      if (!ley) {
-        errores.push('La ley debe ser un porcentaje mayor a 0 y hasta 100.');
-        continue;
+    filas.forEach((fila, i) => {
+      const lectura: LecturaFila = {
+        antes: leerNumero(fila.pesoAntesFundirG, 'peso'),
+        despues: leerNumero(fila.pesoDespuesFundirG, 'peso'),
+        ley: leerLey(fila.leyPorcentaje),
+      };
+      lecturas.set(fila.id, lectura);
+
+      const pieza = filas.length > 1 ? `Pieza ${i + 1}: ` : '';
+      const { antes, despues, ley } = lectura;
+      for (const l of [antes, despues, ley]) {
+        if (l.error) errores.push(pieza + l.error);
       }
+      if (antes.error || despues.error || ley.error) return;
+
+      // Una fila a medio llenar no se descarta en silencio: la compra se
+      // guardaría con una pieza menos.
+      const vacia = !fila.pesoAntesFundirG.trim() && !despues.valor && !ley.valor;
+      if (vacia) return;
+      if (!despues.valor) return void errores.push(`${pieza}falta el peso después de fundir.`);
+      if (!ley.valor) return void errores.push(`${pieza}falta la ley.`);
+      if (!onzaLeida.valor || !tcLeido.valor) return;
 
       try {
         const r = calcularCompraItem({
-          onzaCierreUsd: cotizacion.onzaCierreUsd,
-          tipoCambio: cotizacion.tipoCambio,
-          pesoAntesFundirG: fila.pesoAntesFundirG || null,
-          pesoDespuesFundirG: fila.pesoDespuesFundirG,
-          ley,
+          onzaCierreUsd: onzaLeida.valor,
+          tipoCambio: tcLeido.valor,
+          pesoAntesFundirG: antes.valor,
+          pesoDespuesFundirG: despues.valor,
+          ley: ley.valor,
         });
         items.push({
           filaId: fila.id,
           id: fila.id,
-          pesoAntesFundirG: fila.pesoAntesFundirG || null,
-          pesoDespuesFundirG: fila.pesoDespuesFundirG,
+          pesoAntesFundirG: antes.valor,
+          pesoDespuesFundirG: despues.valor,
           mermaG: r.mermaG?.toString() ?? null,
-          ley: ley.toString(),
+          ley: ley.valor,
           bsPorGramo: r.bsPorGramo.toString(),
           totalBs: r.totalBs.toString(),
           pesoFinoG: r.pesoFinoG.toString(),
           observacion: fila.observacion || undefined,
         });
       } catch (e) {
-        errores.push((e as Error).message);
+        errores.push(pieza + (e as Error).message);
       }
-    }
+    });
 
     return {
       items,
       totalBs: calcularTotalCompra(items).toString(),
       errores,
+      lecturas,
     };
-  }, [filas, cotizacion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filas, onzaLeida.valor, onzaLeida.error, tcLeido.valor, tcLeido.error]);
+
+  const lecturaDe = (filaId: string) =>
+    liquidacion.lecturas.get(filaId) ?? {
+      antes: SIN_LECTURA,
+      despues: SIN_LECTURA,
+      ley: SIN_LECTURA,
+    };
 
   const puedeGuardar =
-    !!cotizacion &&
+    cotizacionValida &&
     !!clienteId &&
     liquidacion.items.length > 0 &&
     liquidacion.errores.length === 0 &&
     !guardando;
-
-  function abrirCotizacion() {
-    setBorradorOnza(cotizacion?.onzaCierreUsd ?? '');
-    setBorradorTipoCambio(cotizacion?.tipoCambio ?? '');
-    setEditandoCotizacion(true);
-  }
-
-  /**
-   * Guarda una cotización nueva, igual que el módulo Cotización: los registros
-   * son inmutables e históricos, así que ajustar el valor desde aquí no altera
-   * ninguna compra ya liquidada.
-   */
-  async function guardarCotizacion() {
-    if (!borradorOnza || !borradorTipoCambio || guardandoCotizacion) return;
-    setGuardandoCotizacion(true);
-    try {
-      const nueva = {
-        id: crypto.randomUUID(),
-        fecha: new Date().toISOString(),
-        onzaCierreUsd: borradorOnza.trim(),
-        tipoCambio: borradorTipoCambio.trim(),
-        actualizadoEn: new Date().toISOString(),
-        estadoSync: 'pendiente' as const,
-      };
-      await db.cotizaciones.add(nueva);
-      await encolar('cotizacion', nueva.id, 'crear', nueva);
-      setEditandoCotizacion(false);
-    } finally {
-      setGuardandoCotizacion(false);
-    }
-  }
 
   function abrirNuevoCliente() {
     setNuevoNombre('');
@@ -230,11 +368,16 @@ export default function NuevaCompra() {
 
   /**
    * Registra la compra y el lote que origina, en una sola transacción.
+   * Si el operador cambió la onza o el T/C, en la misma transacción se guarda
+   * una cotización oficial nueva: queda en el módulo Cotización para auditoría
+   * y pasa a ser la vigente de las compras siguientes.
    * Con `venderAhora` (caso del cliente que vende el mismo día) pasa directo
    * a la venta con ese lote ya elegido.
    */
   async function guardar(venderAhora = false) {
-    if (!puedeGuardar || !cotizacion) return;
+    if (!puedeGuardar || !onzaLeida.valor || !tcLeido.valor) return;
+    const onzaCierreUsd = onzaLeida.valor;
+    const tc = tcLeido.valor;
     setGuardando(true);
     try {
       const cliente = await db.clientes.get(clienteId);
@@ -245,8 +388,8 @@ export default function NuevaCompra() {
         fecha,
         clienteId,
         clienteNombre: cliente?.nombre ?? '',
-        onzaCierreUsd: cotizacion.onzaCierreUsd,
-        tipoCambio: cotizacion.tipoCambio,
+        onzaCierreUsd,
+        tipoCambio: tc,
         totalBs: liquidacion.totalBs,
         estado: 'CONFIRMADA',
         observacion: observacion || undefined,
@@ -256,7 +399,9 @@ export default function NuevaCompra() {
       };
       const lote = loteDeCompra(compra);
 
-      await db.transaction('rw', db.compras, db.lotes, db.outbox, async () => {
+      const tablas = [db.compras, db.lotes, db.cotizaciones, db.outbox];
+      await db.transaction('rw', tablas, async () => {
+        if (cotizacionNueva) await registrarCotizacion(onzaCierreUsd, tc);
         await db.compras.add(compra);
         await db.lotes.add(lote);
         await encolar('compra', compra.id, 'crear', { ...compra, lote });
@@ -271,81 +416,9 @@ export default function NuevaCompra() {
     <section>
       <header className="encabezado-pagina">
         <h2>Nueva compra</h2>
-
-        <button
-          type="button"
-          className={`chip-cotizacion ${cotizacion ? '' : 'sin-definir'}`}
-          onClick={abrirCotizacion}
-        >
-          <span>
-            {cotizacion ? (
-              <>
-                Onza cierre <b>{importe(cotizacion.onzaCierreUsd)} USD</b> · T/C{' '}
-                <b>{importe(cotizacion.tipoCambio)}</b>
-              </>
-            ) : (
-              'Definir cotización'
-            )}
-          </span>
-          <IconoLapiz />
-        </button>
-
-        {editandoCotizacion && (
-          <>
-            <div
-              className="fondo-popover"
-              onClick={() => setEditandoCotizacion(false)}
-            />
-            <div className="tarjeta-popover" role="dialog" aria-label="Cotización">
-              <div className="campo-bloque">
-                <span className="etiqueta">Onza cierre (USD)</span>
-                <input
-                  inputMode="decimal"
-                  autoFocus
-                  value={borradorOnza}
-                  onChange={(e) => setBorradorOnza(e.target.value)}
-                  placeholder="4867"
-                />
-              </div>
-              <div className="campo-bloque">
-                <span className="etiqueta">Tipo de cambio (Bs por USD)</span>
-                <input
-                  inputMode="decimal"
-                  value={borradorTipoCambio}
-                  onChange={(e) => setBorradorTipoCambio(e.target.value)}
-                  placeholder="11.5"
-                />
-              </div>
-              <p className="nota">
-                Al guardar se crea una nueva cotización oficial, visible en el
-                módulo Cotización para auditoría. Las compras ya registradas
-                conservan la suya.
-              </p>
-              <div className="acciones">
-                <button
-                  type="button"
-                  className="fantasma"
-                  onClick={() => setEditandoCotizacion(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="primario"
-                  disabled={
-                    !borradorOnza || !borradorTipoCambio || guardandoCotizacion
-                  }
-                  onClick={guardarCotizacion}
-                >
-                  {guardandoCotizacion ? 'Guardando…' : 'Guardar cotización'}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
       </header>
 
-      <div className="campos">
+      <div className="campos alineado-arriba">
         <div className="ancho-fecha">
           <label>
             <span className="etiqueta">Fecha</span>
@@ -383,6 +456,75 @@ export default function NuevaCompra() {
             </button>
           </div>
         </div>
+
+        <div className="grupo-cotizacion">
+          <div className="campos-cotizacion">
+            <CampoCotizacion
+              etiqueta="Onza cierre (USD)"
+              placeholder="4867"
+              valor={onza}
+              lectura={onzaLeida}
+              cambio={cambioOnza}
+              anterior={cotizacion?.onzaCierreUsd}
+              antigua={cotizacionAntigua}
+              onCambiar={(v) => {
+                setOnza(v);
+                setCotizacionEditada(true);
+              }}
+            />
+            <CampoCotizacion
+              etiqueta="T/C (Bs por USD)"
+              placeholder="11,5"
+              valor={tipoCambio}
+              lectura={tcLeido}
+              cambio={cambioTc}
+              anterior={cotizacion?.tipoCambio}
+              antigua={cotizacionAntigua}
+              onCambiar={(v) => {
+                setTipoCambio(v);
+                setCotizacionEditada(true);
+              }}
+            />
+          </div>
+
+          {cotizacion && cotizacionNueva ? (
+            <p className="estado-cotizacion modificada">
+              <span className="punto" />
+              <span>
+                Se guardará como <b>nueva cotización</b> al registrar
+              </span>
+              <span aria-hidden="true">·</span>
+              <button type="button" className="enlace" onClick={restablecerCotizacion}>
+                Restablecer
+              </button>
+            </p>
+          ) : cotizacion ? (
+            <p className={`estado-cotizacion ${cotizacionAntigua ? 'antigua' : ''}`}>
+              <span className="punto" />
+              <span>
+                {ultimaCompra ? (
+                  <>
+                    Última compra <b>{haceCuanto(edadMs)}</b>
+                    {cotizacionAntigua && ': revise el precio antes de comprar'}
+                  </>
+                ) : (
+                  'Primera compra: revise el precio antes de comprar'
+                )}
+              </span>
+            </p>
+          ) : (
+            <p className="estado-cotizacion antigua">
+              <span className="punto" />
+              <span>No hay cotización registrada: escriba la onza y el T/C</span>
+            </p>
+          )}
+
+          {avisosCotizacion.map((a) => (
+            <p key={a} className="aviso-cotizacion">
+              {a}
+            </p>
+          ))}
+        </div>
       </div>
 
       <div className="piezas">
@@ -399,11 +541,14 @@ export default function NuevaCompra() {
 
         {filas.map((fila) => {
           const calc = liquidacion.items.find((i) => i.filaId === fila.id);
+          const lectura = lecturaDe(fila.id);
           return (
             <div className="rejilla-piezas pieza" key={fila.id}>
               <input
                 inputMode="decimal"
                 aria-label="Peso antes de fundir"
+                className={claseError(lectura.antes)}
+                aria-invalid={!!lectura.antes.error}
                 placeholder="opcional"
                 value={fila.pesoAntesFundirG}
                 onChange={(e) =>
@@ -413,6 +558,8 @@ export default function NuevaCompra() {
               <input
                 inputMode="decimal"
                 aria-label="Peso después de fundir"
+                className={claseError(lectura.despues)}
+                aria-invalid={!!lectura.despues.error}
                 value={fila.pesoDespuesFundirG}
                 onChange={(e) =>
                   actualizarFila(fila.id, 'pesoDespuesFundirG', e.target.value)
@@ -423,6 +570,8 @@ export default function NuevaCompra() {
                 <input
                   inputMode="decimal"
                   aria-label="Ley en porcentaje"
+                  className={claseError(lectura.ley)}
+                  aria-invalid={!!lectura.ley.error}
                   placeholder=""
                   value={fila.leyPorcentaje}
                   onChange={(e) =>

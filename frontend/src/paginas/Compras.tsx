@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import { db } from '../db/db';
-import { fechaCorta, importe } from '../formato';
+import { estadoSync, fechaCorta, importe } from '../formato';
 
 export default function Compras() {
   const compras = useLiveQuery(
@@ -45,7 +45,7 @@ export default function Compras() {
               <td>{c.clienteNombre}</td>
               <td>{c.items.length}</td>
               <td className="importe">{importe(c.totalBs)}</td>
-              <td>{c.estadoSync === 'pendiente' ? '⏳ pendiente' : '✓'}</td>
+              <td className={estadoSync(c.estadoSync).clase}>{estadoSync(c.estadoSync).texto}</td>
             </tr>
           ))}
           {compras?.length === 0 && (

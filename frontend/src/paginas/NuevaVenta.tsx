@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type Decimal from 'decimal.js';
-import { calcularVentaDeLotes, porcentajeALey } from '@tesoro/dominio';
+import { calcularVentaDeLotes } from '@tesoro/dominio';
 import {
   db,
   encolar,
@@ -11,21 +11,14 @@ import {
   type Lote,
   type Venta,
 } from '../db/db';
+import { claseError, leerLey, leerNumero, type Lectura } from '../entrada';
 import { importe, leyPorcentaje, numero, peso as formatearPeso } from '../formato';
 import { IconoCruz } from '../componentes/Iconos';
 
-/** Fracción de ley a partir del porcentaje tecleado; `null` si no es válido. */
-function leyDesdePorcentaje(porcentaje: string) {
-  let ley;
-  try {
-    ley = porcentajeALey(porcentaje);
-  } catch {
-    return null;
-  }
-  if (!ley.isFinite() || ley.lessThanOrEqualTo(0) || ley.greaterThan(1)) {
-    return null;
-  }
-  return ley;
+/** Peso y ley de una fila tal como se entendieron. */
+interface LecturaFila {
+  peso: Lectura;
+  ley: Lectura;
 }
 
 /** Lote elegido para la venta, con lo que mide el comprador. */
@@ -113,44 +106,71 @@ export default function NuevaVenta() {
       prev.map((f) => (f.loteId === loteId ? { ...f, [campo]: valor } : f)),
     );
 
-  const liquidacion = useMemo(() => {
-    const vacia = { resultado: null, leyes: [] as Decimal[], error: '' };
-    if (filas.length === 0 || !onza || !tipoCambio) return vacia;
+  const onzaLeida = leerNumero(onza, 'onza');
+  const tcLeido = leerNumero(tipoCambio, 'tipoCambio');
 
-    const leyes: Decimal[] = [];
+  const liquidacion = useMemo(() => {
+    const errores = [onzaLeida.error, tcLeido.error].filter((e): e is string => !!e);
+    const lecturas = new Map<string, LecturaFila>();
+    const pesos: string[] = [];
+    const leyes: string[] = [];
     const entradas = [];
+    let completa = filas.length > 0 && !!onzaLeida.valor && !!tcLeido.valor;
+
     for (const fila of filas) {
       const lote = lotesPorId.get(fila.loteId);
-      if (!lote) return { ...vacia, error: 'Uno de los lotes ya no está en stock.' };
-      if (!fila.pesoG || !fila.leyPorcentaje) return vacia;
-
-      const ley = leyDesdePorcentaje(fila.leyPorcentaje);
-      if (!ley) {
-        return { ...vacia, error: 'La ley debe ser un porcentaje mayor a 0 y hasta 100.' };
+      if (!lote) {
+        errores.push('Uno de los lotes ya no está en stock.');
+        completa = false;
+        continue;
       }
-      leyes.push(ley);
+      const lectura: LecturaFila = {
+        peso: leerNumero(fila.pesoG, 'peso'),
+        ley: leerLey(fila.leyPorcentaje),
+      };
+      lecturas.set(fila.loteId, lectura);
+      for (const l of [lectura.peso, lectura.ley]) {
+        if (l.error) errores.push(`Lote ${lote.codigo}: ${l.error}`);
+      }
+      if (!lectura.peso.valor || !lectura.ley.valor) {
+        completa = false;
+        continue;
+      }
+      pesos.push(lectura.peso.valor);
+      leyes.push(lectura.ley.valor);
       entradas.push({
-        pesoG: fila.pesoG,
-        ley,
+        pesoG: lectura.peso.valor,
+        ley: lectura.ley.valor,
         pesoFinoEstimadoG: lote.pesoFinoG,
         costoBs: lote.costoBs,
       });
     }
 
+    if (!completa || errores.length > 0) {
+      return { resultado: null, pesos, leyes, errores, lecturas };
+    }
     try {
       return {
         resultado: calcularVentaDeLotes({
-          onzaCierreUsd: onza,
-          tipoCambio,
+          onzaCierreUsd: onzaLeida.valor!,
+          tipoCambio: tcLeido.valor!,
           lotes: entradas,
         }),
+        pesos,
         leyes,
-        error: '',
+        errores,
+        lecturas,
       };
     } catch (e) {
-      return { ...vacia, error: (e as Error).message };
+      return { resultado: null, pesos, leyes, errores: [(e as Error).message], lecturas };
     }
-  }, [filas, lotesPorId, onza, tipoCambio]);
+  }, [filas, lotesPorId, onzaLeida.valor, onzaLeida.error, tcLeido.valor, tcLeido.error]);
+
+  const lecturaDe = (loteId: string): LecturaFila =>
+    liquidacion.lecturas.get(loteId) ?? {
+      peso: { valor: null, error: null },
+      ley: { valor: null, error: null },
+    };
 
   const resultado = liquidacion.resultado;
   const puedeGuardar = !!destino.trim() && !!resultado && !guardando;
@@ -167,16 +187,16 @@ export default function NuevaVenta() {
         numeroLocal: numeroProvisional('VTA'),
         fecha,
         destino: destino.trim(),
-        onzaCierreUsd: onza.trim(),
-        tipoCambio: tipoCambio.trim(),
+        onzaCierreUsd: onzaLeida.valor!,
+        tipoCambio: tcLeido.valor!,
         items: filas.map((fila, i) => {
           const lote = lotesPorId.get(fila.loteId)!;
           const r = resultado.items[i];
           return {
             loteId: lote.id,
             loteCodigo: lote.codigo,
-            pesoG: fila.pesoG.trim(),
-            ley: liquidacion.leyes[i].toString(),
+            pesoG: liquidacion.pesos[i],
+            ley: liquidacion.leyes[i],
             pesoFinoG: r.pesoFinoG.toString(),
             pesoFinoEstimadoG: lote.pesoFinoG,
             bsPorGramo: r.bsPorGramo.toString(),
@@ -256,6 +276,8 @@ export default function NuevaVenta() {
             <input
               inputMode="decimal"
               placeholder="4867"
+              className={claseError(onzaLeida)}
+              aria-invalid={!!onzaLeida.error}
               value={onza}
               onChange={(e) => setOnza(e.target.value)}
             />
@@ -266,7 +288,9 @@ export default function NuevaVenta() {
             <span className="etiqueta">T/C (Bs por USD)</span>
             <input
               inputMode="decimal"
-              placeholder="11.95"
+              placeholder="11,95"
+              className={claseError(tcLeido)}
+              aria-invalid={!!tcLeido.error}
               value={tipoCambio}
               onChange={(e) => setTipoCambio(e.target.value)}
             />
@@ -294,6 +318,7 @@ export default function NuevaVenta() {
             const lote = lotesPorId.get(fila.loteId);
             if (!lote) return null;
             const r = resultado?.items[i];
+            const lectura = lecturaDe(fila.loteId);
             return (
               <div className="rejilla-venta-lotes pieza" key={fila.loteId}>
                 <span className="codigo">{lote.codigo}</span>
@@ -303,6 +328,8 @@ export default function NuevaVenta() {
                 <input
                   inputMode="decimal"
                   aria-label={`Peso del lote ${lote.codigo}`}
+                  className={claseError(lectura.peso)}
+                  aria-invalid={!!lectura.peso.error}
                   value={fila.pesoG}
                   onChange={(e) => actualizarFila(fila.loteId, 'pesoG', e.target.value)}
                 />
@@ -311,6 +338,8 @@ export default function NuevaVenta() {
                   <input
                     inputMode="decimal"
                     aria-label={`Ley medida por el comprador, lote ${lote.codigo}`}
+                    className={claseError(lectura.ley)}
+                    aria-invalid={!!lectura.ley.error}
                     value={fila.leyPorcentaje}
                     onChange={(e) =>
                       actualizarFila(fila.loteId, 'leyPorcentaje', e.target.value)
@@ -380,9 +409,11 @@ export default function NuevaVenta() {
         {avisoCodigo && <p className="advertencia">{avisoCodigo}</p>}
       </div>
 
-      {(liquidacion.error || errorGuardado) && (
+      {(liquidacion.errores.length > 0 || errorGuardado) && (
         <ul className="errores">
-          {liquidacion.error && <li>{liquidacion.error}</li>}
+          {liquidacion.errores.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
           {errorGuardado && <li>{errorGuardado}</li>}
         </ul>
       )}

@@ -56,6 +56,13 @@ export function leyPorcentaje(fraccion: string | number | Decimal): string {
   return `${numero(porcentaje, porcentaje.isInteger() ? 0 : 2)} %`;
 }
 
+/** Texto y clase CSS del estado de envío de un registro. */
+export function estadoSync(estado: 'pendiente' | 'sincronizado' | 'error') {
+  if (estado === 'pendiente') return { texto: '⏳ pendiente', clase: 'estado-pendiente' };
+  if (estado === 'error') return { texto: '⚠ rechazada', clase: 'estado-error' };
+  return { texto: '✓ sincronizado', clase: 'estado-ok' };
+}
+
 /** Fecha `YYYY-MM-DD` (o ISO) a `DD/MM/AAAA`, sin cruzar husos horarios. */
 export function fechaCorta(valor: string): string {
   const [anio, mes, dia] = valor.slice(0, 10).split('-');

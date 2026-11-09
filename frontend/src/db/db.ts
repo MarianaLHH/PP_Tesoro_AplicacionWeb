@@ -173,6 +173,8 @@ export interface Outbox {
   payload: unknown;
   intentos: number;
   ultimoError?: string;
+  /** El servidor rechazó el dato: reintentar sin corregirlo no lo arregla. */
+  rechazada?: boolean;
   creadoEn: string;
 }
 
@@ -286,6 +288,29 @@ export async function encolar(
     payload,
     intentos: 0,
     creadoEn: new Date().toISOString(),
+  });
+}
+
+/**
+ * Registra una cotización nueva. Recibe valores ya validados y normalizados
+ * (ver `entrada.ts`). Registro y cola en la misma transacción.
+ */
+export async function registrarCotizacion(
+  onzaCierreUsd: string,
+  tipoCambio: string,
+): Promise<void> {
+  const ahora = new Date().toISOString();
+  const cotizacion: Cotizacion = {
+    id: crypto.randomUUID(),
+    fecha: ahora,
+    onzaCierreUsd,
+    tipoCambio,
+    actualizadoEn: ahora,
+    estadoSync: 'pendiente',
+  };
+  await db.transaction('rw', db.cotizaciones, db.outbox, async () => {
+    await db.cotizaciones.add(cotizacion);
+    await encolar('cotizacion', cotizacion.id, 'crear', cotizacion);
   });
 }
 

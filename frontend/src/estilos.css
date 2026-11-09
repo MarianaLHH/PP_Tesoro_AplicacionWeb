@@ -21,7 +21,30 @@
   --oro-suave: rgba(211, 169, 74, 0.16);
   --verde: #57c785;
   --rojo: #e0685f;
+  --ambar: #e8a13a;
+  --ambar-borde: #8a6424;
   color-scheme: dark;
+}
+
+/* Tema claro: mismos tokens, tonos de papel y oro más oscuro para contraste. */
+:root[data-tema='claro'] {
+  --fondo: #f7f3ea;
+  --panel: #fffdf8;
+  --superficie: #f0eadc;
+  --superficie-alta: #e9e1cf;
+  --borde: #ddd3bd;
+  --borde-fuerte: #c4b594;
+  --texto: #2a2316;
+  --texto-tenue: #6b6250;
+  --texto-debil: #958b76;
+  --oro: #a87a1c;
+  --oro-claro: #8c6412;
+  --oro-suave: rgba(168, 122, 28, 0.14);
+  --verde: #2f9a5c;
+  --rojo: #c4463d;
+  --ambar: #b26a00;
+  --ambar-borde: #d9a24a;
+  color-scheme: light;
 }
 
 * {
@@ -326,31 +349,6 @@ button:disabled {
   gap: 10px;
 }
 
-/* Chip de cotización: resumen y acceso a la edición en la misma pantalla. */
-.chip-cotizacion {
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--texto-tenue);
-}
-
-.chip-cotizacion:hover:not(:disabled) {
-  background: var(--superficie);
-  border-color: var(--oro);
-  color: var(--texto);
-}
-
-.chip-cotizacion b {
-  color: var(--oro);
-  font-weight: 600;
-}
-
-.chip-cotizacion.sin-definir {
-  border-color: var(--oro);
-  color: var(--oro);
-}
-
 /* ------------------------------------------------------------ capas */
 
 .fondo-modal {
@@ -385,26 +383,6 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
-}
-
-.fondo-popover {
-  position: fixed;
-  inset: 0;
-  z-index: 150;
-  background: transparent;
-}
-
-.tarjeta-popover {
-  position: absolute;
-  top: 52px;
-  left: 200px;
-  z-index: 151;
-  width: min(300px, calc(100vw - 32px));
-  padding: 20px;
-  border: 1px solid var(--borde-fuerte);
-  border-radius: 14px;
-  background: var(--panel);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
 }
 
 .cerrar {
@@ -626,15 +604,6 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* Chip informativo: mismo aspecto que el de cotización, sin ser botón. */
-.chip-cotizacion.estatico {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--borde);
-  background: var(--superficie);
-  cursor: default;
-}
 
 .rejilla-scroll {
   overflow-x: auto;
@@ -922,15 +891,6 @@ tr.anulada {
   font-size: 13px;
 }
 
-.referencia {
-  font-size: 13px;
-  color: var(--texto-tenue);
-}
-
-.referencia strong {
-  color: var(--oro);
-}
-
 .aviso {
   padding: 32px;
   border: 1px solid var(--borde);
@@ -965,7 +925,296 @@ tr.anulada {
     min-width: 900px;
   }
 
-  .tarjeta-popover {
-    left: 0;
+}
+
+/* ------------------------------------------------------------ sesión y envío */
+
+.estado-error {
+  font-size: 13px;
+  color: var(--rojo);
+}
+
+.estado-conexion .pendientes.rechazada {
+  border-color: var(--rojo);
+  color: var(--rojo);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.compacto {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------ menú de usuario */
+
+.menu-usuario {
+  position: relative;
+}
+
+.menu-usuario-boton {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--texto);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.menu-usuario-boton:hover,
+.menu-usuario-boton[aria-expanded='true'] {
+  background: var(--superficie);
+  border-color: var(--borde);
+  color: var(--oro);
+}
+
+.menu-usuario-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  width: 240px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  animation: menu-aparece 0.14s ease-out;
+}
+
+@keyframes menu-aparece {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
+}
+
+.menu-usuario-panel button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.menu-usuario-tema {
+  justify-content: space-between;
+  padding: 14px 14px;
+  background: var(--superficie-alta);
+  color: var(--texto);
+  font-size: 15px;
+}
+
+.menu-usuario-tema:hover {
+  color: var(--oro);
+}
+
+.menu-usuario-nombre {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px 8px;
+  text-align: center;
+}
+
+.menu-usuario-nombre strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.menu-usuario-nombre span {
+  font-size: 12px;
+  color: var(--texto-tenue);
+  overflow-wrap: anywhere;
+}
+
+.menu-usuario-salir {
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background: transparent;
+  color: var(--oro);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.menu-usuario-salir:hover {
+  background: var(--oro-suave);
+  color: var(--oro-claro);
+}
+
+.pantalla-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--fondo);
+}
+
+.tarjeta-login {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  color: var(--texto);
+}
+
+.tarjeta-login h1 {
+  margin: 0;
+  color: var(--oro);
+}
+
+.tarjeta-login .acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.error-login {
+  margin: 0;
+  color: var(--rojo);
+  font-size: 14px;
+}
+
+.error-campo {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rojo);
+}
+
+/* Aviso que no bloquea: revisar antes de guardar. */
+.aviso {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--oro);
+}
+
+/* ------------------------------------------------------------ cotización en la compra */
+
+.grupo-cotizacion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.campos-cotizacion {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.campo-cotizacion {
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+}
+
+.campo-cotizacion .etiqueta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.campo-cotizacion .insignia {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--oro-suave);
+  color: var(--oro-claro);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.campo-cotizacion input.modificado {
+  border-color: var(--oro);
+  box-shadow: 0 0 0 3px var(--oro-suave);
+}
+
+.campo-cotizacion input.antiguo {
+  border-color: var(--ambar-borde);
+}
+
+.campo-cotizacion .antes {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--texto-tenue);
+}
+
+.estado-cotizacion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-tenue);
+}
+
+.estado-cotizacion b {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.estado-cotizacion .punto {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--verde);
+}
+
+.estado-cotizacion.antigua,
+.estado-cotizacion.antigua b {
+  color: var(--ambar);
+}
+
+.estado-cotizacion.antigua .punto {
+  background: var(--ambar);
+}
+
+.estado-cotizacion.modificada .punto {
+  background: var(--oro);
+}
+
+.estado-cotizacion.modificada b {
+  color: var(--oro-claro);
+}
+
+.estado-cotizacion .enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--oro);
+  font: inherit;
+  cursor: pointer;
+}
+
+.estado-cotizacion .enlace:hover {
+  color: var(--oro-claro);
+  text-decoration: underline;
+}
+
+.aviso-cotizacion {
+  max-width: 380px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--oro);
 }

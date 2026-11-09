@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import Decimal from 'decimal.js';
 import { db, stockFinoDisponible } from '../db/db';
-import { fechaCorta, importe, peso } from '../formato';
+import { estadoSync, fechaCorta, importe, peso } from '../formato';
 import { IconoMas } from '../componentes/Iconos';
 
 /** Salidas del material ya comprado hacia el comprador final. */
@@ -84,12 +84,8 @@ export default function Ventas() {
             >
               {v.gananciaBs === null ? '—' : importe(v.gananciaBs)}
             </span>
-            <span
-              className={
-                v.estadoSync === 'pendiente' ? 'estado-pendiente' : 'estado-ok'
-              }
-            >
-              {v.estadoSync === 'pendiente' ? '⏳ pendiente' : '✓ sincronizado'}
+            <span className={estadoSync(v.estadoSync).clase}>
+              {estadoSync(v.estadoSync).texto}
             </span>
           </div>
         ))}

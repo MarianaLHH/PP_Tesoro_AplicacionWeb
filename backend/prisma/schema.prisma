@@ -6,6 +6,10 @@
 //  - Los PESOS   usan Decimal(14,3)  -> 3 decimales (gramos).
 //  - La LEY      usa  Decimal(6,4)   -> ej. 0.8700
 //  - Nada se borra: se anula con estado + contraasiento.
+//  - Las fechas de operación (compra, venta, lote, fundición) son DÍAS
+//    (`@db.Date`): la PWA las guarda como `YYYY-MM-DD` en la zona del dispositivo.
+//  - `usuarioId` NO viaja desde la PWA: el servidor lo toma de la sesión de
+//    quien sincroniza.
 
 generator client {
   provider = "prisma-client-js"
@@ -119,7 +123,7 @@ model Compra {
   numero        Int?            @unique
   /// Número provisional mostrado mientras la operación está offline.
   numeroLocal   String?         @map("numero_local")
-  fecha         DateTime
+  fecha         DateTime        @db.Date
   clienteId     String          @map("cliente_id") @db.Uuid
   /// Parámetros congelados al confirmar.
   onzaCierreUsd Decimal         @map("onza_cierre_usd") @db.Decimal(18, 2)
@@ -187,6 +191,15 @@ enum OrigenLote {
 
 /// Pieza física de oro en caja fuerte. Nace de una compra o de una fundición
 /// conjunta. Ley y fino son ESTIMADOS: la ley real la mide el comprador al vender.
+///
+/// Como un lote entra y sale siempre COMPLETO, su peso y su estado se guardan
+/// aquí directamente; `MovimientoInventario` es el kardex que lo respalda.
+///
+/// La PWA usa `origenId` / `destinoId` genéricos; al sincronizar se reparten así:
+///   origen COMPRA    -> compraId            origen FUNDICION -> fundicionOrigenId
+///   estado FUNDIDO   -> fundicionDestinoId  estado VENDIDO   -> ventaItem
+/// La lista de clientes de la PWA no se guarda: se deriva de la compra o de
+/// los lotes fundidos.
 model Lote {
   id                 String     @id @default(uuid()) @db.Uuid
   /// Código corto que se etiqueta en la pieza y lee la pistola (L-3FA9C1).
@@ -197,7 +210,7 @@ model Lote {
   fundicionOrigenId  String?    @unique @map("fundicion_origen_id") @db.Uuid
   /// Fundición que lo CONSUMIÓ (estado = FUNDIDO).
   fundicionDestinoId String?    @map("fundicion_destino_id") @db.Uuid
-  fecha              DateTime
+  fecha              DateTime   @db.Date
   pesoBrutoG         Decimal    @map("peso_bruto_g") @db.Decimal(14, 3)
   pesoFinoG          Decimal    @map("peso_fino_g") @db.Decimal(14, 3)
   leyEstimada        Decimal    @map("ley_estimada") @db.Decimal(6, 4)
@@ -220,7 +233,7 @@ model Lote {
 /// Fundición conjunta: varios lotes (de cualquier día y cliente) -> un lote nuevo.
 model Fundicion {
   id               String          @id @default(uuid()) @db.Uuid
-  fecha            DateTime
+  fecha            DateTime        @db.Date
   pesoBrutoOrigenG Decimal         @map("peso_bruto_origen_g") @db.Decimal(14, 3)
   pesoResultanteG  Decimal         @map("peso_resultante_g") @db.Decimal(14, 3)
   mermaG           Decimal         @map("merma_g") @db.Decimal(14, 3)
@@ -243,6 +256,10 @@ model Fundicion {
 
 enum TipoMovimientoInventario {
   ENTRADA_COMPRA
+  /// Lote resultante de una fundición conjunta.
+  ENTRADA_FUNDICION
+  /// Lote consumido por una fundición conjunta.
+  SALIDA_FUNDICION
   SALIDA_VENTA
   MERMA
   AJUSTE
@@ -271,22 +288,26 @@ model MovimientoInventario {
 
 // ---------------------------------------------------------------- Venta
 
+/// El comprador paga en bolivianos (`totalBs`); `totalUsd` es la referencia.
 model Venta {
   id           String   @id @default(uuid()) @db.Uuid
   numero       Int?     @unique
   numeroLocal  String?  @map("numero_local")
-  fecha        DateTime
-  exportadorId String   @map("exportador_id") @db.Uuid
+  fecha        DateTime @db.Date
+  /// Comprador final tal como lo escribe el operador (exportador, refinería…).
+  destino      String
+  /// Enlace opcional al catálogo de exportadores, cuando exista en la PWA.
+  exportadorId String?  @map("exportador_id") @db.Uuid
 
-  moneda        Moneda  @default(USD)
   /// Onza y tipo de cambio los fija el comprador en cada venta.
   onzaCierreUsd Decimal @map("onza_cierre_usd") @db.Decimal(18, 2)
   tipoCambio    Decimal @map("tipo_cambio") @db.Decimal(18, 4)
 
-  totalUsd   Decimal @map("total_usd") @db.Decimal(18, 2)
-  totalBs    Decimal @map("total_bs") @db.Decimal(18, 2)
-  costoBs    Decimal @map("costo_bs") @db.Decimal(18, 2)
-  gananciaBs Decimal @map("ganancia_bs") @db.Decimal(18, 2)
+  totalUsd   Decimal  @map("total_usd") @db.Decimal(18, 2)
+  totalBs    Decimal  @map("total_bs") @db.Decimal(18, 2)
+  /// `null` en ventas anteriores al módulo de lotes: no se conoce el costo.
+  costoBs    Decimal? @map("costo_bs") @db.Decimal(18, 2)
+  gananciaBs Decimal? @map("ganancia_bs") @db.Decimal(18, 2)
 
   estado        EstadoOperacion @default(BORRADOR)
   observacion   String?
@@ -296,7 +317,7 @@ model Venta {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  exportador Exportador  @relation(fields: [exportadorId], references: [id])
+  exportador Exportador? @relation(fields: [exportadorId], references: [id])
   usuario    Usuario     @relation(fields: [usuarioId], references: [id])
   cajaSesion CajaSesion? @relation(fields: [cajaSesionId], references: [id])
   items      VentaItem[]
@@ -307,28 +328,33 @@ model Venta {
 
 /// Un lote vendido COMPLETO, liquidado con la ley que midió el comprador.
 model VentaItem {
-  id      String @id @default(uuid()) @db.Uuid
-  ventaId String @map("venta_id") @db.Uuid
+  id         String  @id @default(uuid()) @db.Uuid
+  ventaId    String  @map("venta_id") @db.Uuid
   /// Único: un lote se vende una sola vez.
-  loteId  String @unique @map("lote_id") @db.Uuid
+  /// `null` solo en ventas anteriores al módulo de lotes (PostgreSQL admite
+  /// varios NULL en una columna única).
+  loteId     String? @unique @map("lote_id") @db.Uuid
+  /// Código del lote al momento de vender; "—" en ventas sin lote.
+  loteCodigo String  @map("lote_codigo")
 
-  pesoG             Decimal @map("peso_g") @db.Decimal(14, 3)
+  pesoG             Decimal  @map("peso_g") @db.Decimal(14, 3)
   /// Ley medida por el comprador.
-  ley               Decimal @db.Decimal(6, 4)
-  pesoFinoG         Decimal @map("peso_fino_g") @db.Decimal(14, 3)
+  ley               Decimal  @db.Decimal(6, 4)
+  pesoFinoG         Decimal  @map("peso_fino_g") @db.Decimal(14, 3)
   /// Fino que el negocio estimaba; la diferencia con pesoFinoG es ganancia o pérdida de ley.
-  pesoFinoEstimadoG Decimal @map("peso_fino_estimado_g") @db.Decimal(14, 3)
-  bsPorGramo        Decimal @map("bs_por_gramo") @db.Decimal(18, 2)
-  precioGramoUsd    Decimal @map("precio_gramo_usd") @db.Decimal(18, 2)
+  pesoFinoEstimadoG Decimal  @map("peso_fino_estimado_g") @db.Decimal(14, 3)
+  /// Ausente en ventas anteriores a que se cobrara en bolivianos.
+  bsPorGramo        Decimal? @map("bs_por_gramo") @db.Decimal(18, 2)
+  precioGramoUsd    Decimal  @map("precio_gramo_usd") @db.Decimal(18, 2)
   /// Lo que paga el comprador.
-  totalBs           Decimal @map("total_bs") @db.Decimal(18, 2)
+  totalBs           Decimal  @map("total_bs") @db.Decimal(18, 2)
   /// Equivalente en dólares, de referencia.
-  totalUsd          Decimal @map("total_usd") @db.Decimal(18, 2)
-  /// Costo del oro vendido, arrastrado del lote. Permite calcular la ganancia real.
-  costoBs           Decimal @map("costo_bs") @db.Decimal(18, 2)
+  totalUsd          Decimal  @map("total_usd") @db.Decimal(18, 2)
+  /// Costo del oro vendido, arrastrado del lote. `null` en ventas sin lote.
+  costoBs           Decimal? @map("costo_bs") @db.Decimal(18, 2)
 
   venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
-  lote  Lote  @relation(fields: [loteId], references: [id])
+  lote  Lote? @relation(fields: [loteId], references: [id])
 
   @@index([ventaId])
   @@map("venta_item")

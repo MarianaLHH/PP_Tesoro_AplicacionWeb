@@ -1,7 +1,9 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Publico } from './auth/sesion';
 import { PrismaService } from './prisma/prisma.service';
 
 /** Usado por Docker y por la plataforma en la nube para saber si el servicio está vivo. */
+@Publico()
 @Controller('salud')
 export class SaludController {
   constructor(private readonly prisma: PrismaService) {}

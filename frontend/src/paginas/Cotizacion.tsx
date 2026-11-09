@@ -1,123 +1,75 @@
-import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { calcularBsPorGramo } from '@tesoro/dominio';
-import { db, encolar } from '../db/db';
+import { db } from '../db/db';
 import { importe } from '../formato';
 
+/** Cuántas cotizaciones se listan, de la más reciente hacia atrás. */
+const LIMITE_HISTORIAL = 50;
+
 /**
- * Parámetros globales de valoración: onza de cierre y tipo de cambio.
+ * Historial de cotizaciones, solo para consulta.
  *
- * Cada registro es histórico e inmutable: las compras copian estos valores,
- * nunca los referencian. Cambiar la cotización de hoy NO altera lo ya
- * liquidado — a diferencia del Excel original.
+ * Las cotizaciones se registran desde Nueva compra: al cambiar la onza o el
+ * T/C, la compra guarda una cotización oficial nueva. Cada registro es
+ * histórico e inmutable: las compras copian estos valores, nunca los
+ * referencian, así que nada de lo que se vea aquí altera lo ya liquidado.
  */
 export default function Cotizacion() {
   const historial = useLiveQuery(
-    () => db.cotizaciones.orderBy('fecha').reverse().limit(15).toArray(),
+    () => db.cotizaciones.orderBy('fecha').reverse().limit(LIMITE_HISTORIAL).toArray(),
     [],
   );
 
-  const [onzaCierreUsd, setOnza] = useState('');
-  const [tipoCambio, setTipoCambio] = useState('');
-  const [guardando, setGuardando] = useState(false);
-
-  /** Referencia rápida: cuánto vale el gramo de oro puro con estos parámetros. */
-  const referencia = (() => {
-    if (!onzaCierreUsd || !tipoCambio) return null;
+  /** Referencia: cuánto vale el gramo de oro puro con esos parámetros. */
+  const gramoPuro = (onzaCierreUsd: string, tipoCambio: string) => {
     try {
-      return calcularBsPorGramo({ onzaCierreUsd, tipoCambio, ley: 1 }).toString();
+      return importe(calcularBsPorGramo({ onzaCierreUsd, tipoCambio, ley: 1 }).toString());
     } catch {
-      return null;
+      return '—';
     }
-  })();
-
-  async function guardar() {
-    if (!onzaCierreUsd || !tipoCambio) return;
-    setGuardando(true);
-    try {
-      const cotizacion = {
-        id: crypto.randomUUID(),
-        fecha: new Date().toISOString(),
-        onzaCierreUsd,
-        tipoCambio,
-        actualizadoEn: new Date().toISOString(),
-        estadoSync: 'pendiente' as const,
-      };
-      await db.cotizaciones.add(cotizacion);
-      await encolar('cotizacion', cotizacion.id, 'crear', cotizacion);
-      setOnza('');
-      setTipoCambio('');
-    } finally {
-      setGuardando(false);
-    }
-  }
+  };
 
   return (
     <section>
       <header className="encabezado-pagina">
         <h2>Cotización</h2>
         <p className="ayuda">
-          Se aplica a las compras que se registren desde ahora. Las anteriores
-          conservan la cotización con la que fueron liquidadas.
+          Historial de la onza y el tipo de cambio. Para actualizarlos, cámbielos
+          al registrar una nueva compra.
         </p>
+        <Link className="primario boton" to="/compras/nueva">
+          Nueva compra
+        </Link>
       </header>
 
-      <div className="campos">
-        <label>
-          Onza cierre (USD)
-          <input
-            inputMode="decimal"
-            value={onzaCierreUsd}
-            onChange={(e) => setOnza(e.target.value)}
-            placeholder="4867"
-          />
-        </label>
-
-        <label>
-          Tipo de cambio (Bs por USD)
-          <input
-            inputMode="decimal"
-            value={tipoCambio}
-            onChange={(e) => setTipoCambio(e.target.value)}
-            placeholder="11.5"
-          />
-        </label>
-      </div>
-
-      {referencia && (
-        <p className="referencia">
-          Gramo de oro puro (ley 100 %): <strong>Bs {importe(referencia)}</strong>
-        </p>
-      )}
-
-      <button
-        className="primario"
-        disabled={!onzaCierreUsd || !tipoCambio || guardando}
-        onClick={guardar}
-      >
-        {guardando ? 'Guardando…' : 'Registrar cotización'}
-      </button>
-
-      <h3>Historial</h3>
       <table>
         <thead>
           <tr>
             <th>Fecha</th>
-            <th>Onza cierre</th>
-            <th>T/C</th>
+            <th>Onza cierre (USD)</th>
+            <th>T/C (Bs por USD)</th>
+            <th>Gramo puro (Bs)</th>
           </tr>
         </thead>
         <tbody>
-          {historial?.map((c) => (
+          {historial?.map((c, i) => (
             <tr key={c.id}>
-              <td>{new Date(c.fecha).toLocaleString('es-BO')}</td>
+              <td>
+                {i === 0 && <span className="insignia">Vigente</span>}
+                {new Date(c.fecha).toLocaleString('es-BO')}
+              </td>
               <td className="importe">{importe(c.onzaCierreUsd)}</td>
               <td className="importe">{importe(c.tipoCambio)}</td>
+              <td className="importe">{gramoPuro(c.onzaCierreUsd, c.tipoCambio)}</td>
             </tr>
           ))}
           {historial?.length === 0 && (
             <tr>
-              <td colSpan={3}>Sin cotizaciones registradas.</td>
+              <td colSpan={4}>
+                Sin cotizaciones registradas. La primera se guarda al registrar
+                una compra.
+              </td>
             </tr>
           )}
         </tbody>

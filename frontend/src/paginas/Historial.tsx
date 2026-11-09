@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Decimal from 'decimal.js';
 import { db } from '../db/db';
-import { fechaCorta, importe, leyPorcentaje, peso } from '../formato';
+import { estadoSync, fechaCorta, importe, leyPorcentaje, peso } from '../formato';
 
 /**
  * Historial de compras por cliente.
@@ -118,12 +118,8 @@ export default function Historial() {
             <span className="tenue">{importe(fila.bsPorGramo)}</span>
             <span className="destacado">{importe(fila.totalBs)}</span>
             <span className="tenue">{fechaCorta(fila.fecha)}</span>
-            <span
-              className={
-                fila.estadoSync === 'pendiente' ? 'estado-pendiente' : 'estado-ok'
-              }
-            >
-              {fila.estadoSync === 'pendiente' ? '⏳ pendiente' : '✓ sincronizado'}
+            <span className={estadoSync(fila.estadoSync).clase}>
+              {estadoSync(fila.estadoSync).texto}
             </span>
           </div>
         ))}

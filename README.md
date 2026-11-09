@@ -57,6 +57,11 @@ desplegar este repositorio con su `Dockerfile` y definir las variables:
 | `DATABASE_URL` | `postgresql://usuario:clave@host:5432/tesoro?schema=public` |
 | `JWT_SECRET` | cadena larga y aleatoria |
 | `PORT` | la que indique la plataforma (por defecto 3000) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | administrador inicial; se crea solo si no hay usuarios |
+
+**Primer acceso:** con la base vacía, la API crea un usuario ADMIN con
+`ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 8 caracteres). Con él se entra a la
+PWA; desde entonces la app sincroniza sola contra `POST /api/sync`.
 
 Cambios al modelo: editar `schema.prisma` y ejecutar
 `npm run prisma:migrate --workspace backend -- --name descripcion`.
@@ -75,10 +80,13 @@ Hecho:
 - Dominio de cálculo con pruebas ([shared/src/calculo-oro.ts](shared/src/calculo-oro.ts))
 - PWA: cotización, clientes, compras, inventario de lotes, fundición conjunta
   y ventas por lote con ganancia, todo contra IndexedDB
+- Inicio de sesión (JWT) y sincronización: la cola `outbox` se envía a
+  `POST /api/sync`, que vuelve a liquidar con `@tesoro/dominio`, asigna los
+  correlativos y escribe kardex y auditoría
 
 Pendiente:
 
-- API NestJS: Prisma, autenticación, endpoints, correlativos
-- Worker de sincronización (la cola `outbox` ya se llena, todavía no se vacía)
+- Gestión de usuarios (alta, roles, cambio de clave) — hoy solo existe el ADMIN inicial
+- Descarga de datos del servidor a otros dispositivos (hoy la sincronización solo sube)
 - Anulación de compras, fundiciones y ventas
 - Caja y reportes
