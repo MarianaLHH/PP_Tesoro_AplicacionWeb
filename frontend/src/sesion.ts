@@ -45,6 +45,11 @@ export function cerrarSesion() {
   escribir(null);
 }
 
+/** Refleja en la sesión guardada un cambio de los propios datos. */
+export function actualizarUsuarioSesion(datos: Partial<Pick<Sesion['usuario'], 'nombre' | 'email'>>) {
+  if (actual) escribir({ ...actual, usuario: { ...actual.usuario, ...datos } });
+}
+
 /** El servidor respondió 401: se deja de enviar hasta que vuelva a entrar. */
 export function marcarSesionVencida() {
   if (actual && !actual.vencida) escribir({ ...actual, vencida: true });
@@ -99,4 +104,38 @@ export function dispositivoId(): string {
   } catch {
     return 'sin-almacenamiento';
   }
+}
+
+/**
+ * Llamada autenticada a la API, para lo que necesita conexión (la gestión de
+ * usuarios). Lanza `Error` con un mensaje para mostrar tal cual.
+ */
+export async function pedirApi<T = void>(
+  ruta: string,
+  opciones: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown } = {},
+): Promise<T> {
+  const sesion = obtenerSesion();
+  if (!sesion || sesion.vencida) {
+    throw new Error('La sesión venció. Vuelva a entrar para continuar.');
+  }
+  let resp: Response;
+  try {
+    resp = await fetch(`/api${ruta}`, {
+      method: opciones.method ?? 'GET',
+      headers: {
+        Authorization: `Bearer ${sesion.token}`,
+        ...(opciones.body !== undefined && { 'Content-Type': 'application/json' }),
+      },
+      body: opciones.body !== undefined ? JSON.stringify(opciones.body) : undefined,
+    });
+  } catch {
+    throw new Error('Sin conexión con el servidor. Esta acción necesita internet.');
+  }
+  if (resp.status === 401) {
+    const mensaje = await mensajeDeError(resp);
+    marcarSesionVencida();
+    throw new Error(mensaje);
+  }
+  if (!resp.ok) throw new Error(await mensajeDeError(resp));
+  return (resp.status === 204 ? undefined : await resp.json()) as T;
 }
