@@ -1,7 +1,9 @@
-import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioSesion } from '../auth/sesion';
+import { ResolutorAutoria } from './autoria';
 import { OperacionDto, ResultadoOperacion } from './sync.dto';
 import {
   esVentaSinLotes,
@@ -19,7 +21,10 @@ import {
 type Tx = Prisma.TransactionClient;
 
 interface Contexto {
+  /** Autor: quien registró la operación en el dispositivo. */
   usuarioId: string;
+  /** Quien tiene la sesión que la está enviando. */
+  enviadoPorId: string;
   dispositivoId: string | null;
 }
 
@@ -37,7 +42,10 @@ interface Contexto {
 export class SyncService {
   private readonly log = new Logger('Sync');
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+  ) {}
 
   async procesar(
     operaciones: OperacionDto[],
@@ -45,11 +53,28 @@ export class SyncService {
     dispositivoId?: string,
   ): Promise<ResultadoOperacion[]> {
     await this.exigirUsuarioHabilitado(sesion);
-    const ctx: Contexto = { usuarioId: sesion.id, dispositivoId: dispositivoId ?? null };
+    const autoria = new ResolutorAutoria(this.jwt, (id) =>
+      this.prisma.usuario.findUnique({
+        where: { id },
+        select: { nombre: true, rol: true, activo: true },
+      }),
+    );
 
     const resultados: ResultadoOperacion[] = [];
     for (const op of operaciones) {
       try {
+        // Reintento de algo ya guardado (la respuesta anterior no llegó): se
+        // confirma sin volver a revisar al autor, que pudo cambiar desde entonces.
+        const previa = await this.yaAplicada(op);
+        if (previa) {
+          resultados.push({ id: op.id, estado: 'ok', ...(previa.numero ? { numero: previa.numero } : {}) });
+          continue;
+        }
+        const ctx: Contexto = {
+          usuarioId: await autoria.autor(op.autorToken, sesion.id),
+          enviadoPorId: sesion.id,
+          dispositivoId: dispositivoId ?? null,
+        };
         const numero = await this.aplicar(op, ctx);
         resultados.push({ id: op.id, estado: 'ok', ...(numero ? { numero } : {}) });
       } catch (e) {
@@ -63,12 +88,40 @@ export class SyncService {
     return resultados;
   }
 
-  /** El token puede seguir vigente aunque el usuario se haya desactivado. */
+  /**
+   * Quien envía solo necesita una cuenta activa: la autoría y sus permisos se
+   * comprueban por operación (ver `ResolutorAutoria`). El token puede seguir
+   * vigente aunque el usuario se haya desactivado.
+   */
   private async exigirUsuarioHabilitado(sesion: UsuarioSesion) {
     const usuario = await this.prisma.usuario.findUnique({ where: { id: sesion.id } });
     if (!usuario?.activo) throw new UnauthorizedException('El usuario no está habilitado.');
-    if (usuario.rol === 'AUDITOR') {
-      throw new ForbiddenException('El rol auditor no puede registrar operaciones.');
+  }
+
+  /**
+   * Si la entidad ya existe en el servidor devuelve su número (o `null` si no
+   * lleva). Los `crear*` vuelven a comprobarlo dentro de su transacción.
+   */
+  private async yaAplicada(op: OperacionDto): Promise<{ numero: number | null } | null> {
+    if (op.accion !== 'crear') return null;
+    const where = { where: { id: op.entidadId } };
+    switch (op.entidad) {
+      case 'cliente':
+        return (await this.prisma.cliente.findUnique(where)) ? { numero: null } : null;
+      case 'cotizacion':
+        return (await this.prisma.cotizacion.findUnique(where)) ? { numero: null } : null;
+      case 'fundicion':
+        return (await this.prisma.fundicion.findUnique(where)) ? { numero: null } : null;
+      case 'compra': {
+        const compra = await this.prisma.compra.findUnique({ ...where, select: { numero: true } });
+        return compra ? { numero: compra.numero } : null;
+      }
+      case 'venta': {
+        const venta = await this.prisma.venta.findUnique({ ...where, select: { numero: true } });
+        return venta ? { numero: venta.numero } : null;
+      }
+      default:
+        return null;
     }
   }
 
@@ -324,6 +377,7 @@ function auditar(tx: Tx, entidad: string, entidadId: string, payload: unknown, c
       accion: 'CREAR',
       datosDespues: payload as Prisma.InputJsonValue,
       usuarioId: ctx.usuarioId,
+      enviadoPorId: ctx.enviadoPorId,
       dispositivoId: ctx.dispositivoId,
     },
   });

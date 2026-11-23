@@ -44,6 +44,7 @@ async function ejecutar() {
         entidadId: op.entidadId,
         accion: op.accion,
         payload: await datosActuales(op),
+        autorToken: op.autorToken,
       })),
     );
 

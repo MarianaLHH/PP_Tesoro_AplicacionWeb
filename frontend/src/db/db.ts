@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import Decimal from 'decimal.js';
 import { calcularLoteDeCompra } from '@tesoro/dominio';
+import { obtenerSesion } from '../sesion';
 
 /**
  * Base de datos local (IndexedDB).
@@ -171,6 +172,12 @@ export interface Outbox {
   entidadId: string;
   accion: 'crear' | 'editar' | 'anular';
   payload: unknown;
+  /**
+   * Token de quien registró la operación. El servidor lo usa para atribuirla
+   * a esa persona aunque otra entre después en el dispositivo y la envíe.
+   * Falta en operaciones encoladas antes de existir este campo.
+   */
+  autorToken?: string;
   intentos: number;
   ultimoError?: string;
   /** El servidor rechazó el dato: reintentar sin corregirlo no lo arregla. */
@@ -286,6 +293,7 @@ export async function encolar(
     entidadId,
     accion,
     payload,
+    autorToken: obtenerSesion()?.token,
     intentos: 0,
     creadoEn: new Date().toISOString(),
   });

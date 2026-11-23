@@ -5,11 +5,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtGuard } from './jwt.guard';
+import { UsuariosModule } from '../usuarios/usuarios.module';
 
 const SECRETO_DE_EJEMPLO = 'cambiar-en-produccion';
 
 @Module({
   imports: [
+    UsuariosModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -29,5 +31,6 @@ const SECRETO_DE_EJEMPLO = 'cambiar-en-produccion';
   ],
   controllers: [AuthController],
   providers: [AuthService, { provide: APP_GUARD, useClass: JwtGuard }],
+  exports: [JwtModule],
 })
 export class AuthModule {}

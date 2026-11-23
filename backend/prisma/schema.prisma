@@ -8,8 +8,9 @@
 //  - Nada se borra: se anula con estado + contraasiento.
 //  - Las fechas de operación (compra, venta, lote, fundición) son DÍAS
 //    (`@db.Date`): la PWA las guarda como `YYYY-MM-DD` en la zona del dispositivo.
-//  - `usuarioId` NO viaja desde la PWA: el servidor lo toma de la sesión de
-//    quien sincroniza.
+//  - `usuarioId` (el autor) NO viaja como dato: el servidor lo toma del token
+//    firmado que la PWA guarda en cada operación al registrarla (ver
+//    `sync/autoria.ts`), no de quien sincroniza.
 
 generator client {
   provider = "prisma-client-js"
@@ -423,6 +424,9 @@ model Auditoria {
   datosAntes    Json?           @map("datos_antes")
   datosDespues  Json?           @map("datos_despues")
   usuarioId     String          @map("usuario_id") @db.Uuid
+  /// En operaciones sincronizadas: quién las envió. Puede diferir de
+  /// `usuarioId` (el autor) cuando otra persona entra en el mismo dispositivo.
+  enviadoPorId  String?         @map("enviado_por_id") @db.Uuid
   dispositivoId String?         @map("dispositivo_id")
   fecha         DateTime        @default(now())
 

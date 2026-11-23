@@ -86,7 +86,6 @@ Hecho:
 
 Pendiente:
 
-- Gestión de usuarios (alta, roles, cambio de clave) — hoy solo existe el ADMIN inicial
 - Descarga de datos del servidor a otros dispositivos (hoy la sincronización solo sube)
 - Anulación de compras, fundiciones y ventas
 - Caja y reportes

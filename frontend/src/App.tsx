@@ -2,7 +2,7 @@ import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { useTema } from './tema';
-import { IconoLuna, IconoSalir, IconoSol, IconoUsuario } from './componentes/Iconos';
+import { IconoLapiz, IconoLuna, IconoSalir, IconoSol, IconoUsuario } from './componentes/Iconos';
 import { db } from './db/db';
 import { sincronizar } from './db/sincronizar';
 import { cerrarSesion, useSesion, type Sesion } from './sesion';
@@ -16,6 +16,8 @@ import NuevaVenta from './paginas/NuevaVenta';
 import Inventario from './paginas/Inventario';
 import Fundicion from './paginas/Fundicion';
 import Login from './paginas/Login';
+import Usuarios from './paginas/Usuarios';
+import CambiarClave from './componentes/CambiarClave';
 
 /** Cada cuánto se reintenta el envío mientras haya algo en la cola. */
 const INTERVALO_SYNC_MS = 30_000;
@@ -94,13 +96,14 @@ function Usuario({ sesion, pendientes }: { sesion: Sesion; pendientes: number })
   function salir() {
     const aviso =
       pendientes > 0
-        ? `Hay ${pendientes} operaciones sin enviar. Quedarán guardadas en este dispositivo y se enviarán cuando alguien vuelva a entrar. ¿Salir?`
+        ? `Hay ${pendientes} operaciones sin enviar. Quedarán guardadas en este dispositivo y se enviarán a su nombre cuando alguien vuelva a entrar. ¿Salir?`
         : '¿Cerrar la sesión?';
     if (window.confirm(aviso)) cerrarSesion();
   }
 
   const { tema, alternar } = useTema();
   const [abierto, setAbierto] = useState(false);
+  const [cambiandoClave, setCambiandoClave] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
 
   // Se cierra al hacer clic fuera o con Escape.
@@ -156,6 +159,19 @@ function Usuario({ sesion, pendientes }: { sesion: Sesion; pendientes: number })
           <button
             type="button"
             role="menuitem"
+            className="menu-usuario-clave"
+            onClick={() => {
+              setAbierto(false);
+              setCambiandoClave(true);
+            }}
+          >
+            <IconoLapiz tamano={15} />
+            <span>Cambiar contraseña</span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
             className="menu-usuario-salir"
             onClick={salir}
           >
@@ -164,6 +180,7 @@ function Usuario({ sesion, pendientes }: { sesion: Sesion; pendientes: number })
           </button>
         </div>
       )}
+      {cambiandoClave && <CambiarClave onCerrar={() => setCambiandoClave(false)} />}
     </div>
   );
 }
@@ -172,6 +189,8 @@ function Principal({ sesion }: { sesion: Sesion }) {
   const enLinea = useEnLinea();
   const pendientes = useLiveQuery(() => db.outbox.count(), [], 0);
   const [reentrando, setReentrando] = useState(false);
+  // Solo decide qué se muestra: el servidor vuelve a comprobar el rol.
+  const esAdmin = sesion.usuario.rol === 'ADMIN';
   useSincronizacion(sesion, enLinea, pendientes);
 
   useEffect(() => {
@@ -193,6 +212,7 @@ function Principal({ sesion }: { sesion: Sesion }) {
           <NavLink to="/historial">Historial</NavLink>
           <NavLink to="/cotizacion">Cotización</NavLink>
           <NavLink to="/clientes">Clientes</NavLink>
+          {esAdmin && <NavLink to="/usuarios">Usuarios</NavLink>}
         </nav>
         <EstadoConexion
           sesion={sesion}
@@ -219,6 +239,7 @@ function Principal({ sesion }: { sesion: Sesion }) {
           <Route path="/ventas/nueva" element={<NuevaVenta />} />
           <Route path="/cotizacion" element={<Cotizacion />} />
           <Route path="/clientes" element={<Clientes />} />
+          {esAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         </Routes>
       </main>
     </div>

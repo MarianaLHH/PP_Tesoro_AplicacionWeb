@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { AuthService } from './auth.service';
+import { CambiarClaveDto } from '../usuarios/usuarios.dto';
+import { UsuariosService } from '../usuarios/usuarios.service';
 import { Publico, UsuarioActual, UsuarioSesion } from './sesion';
 
 export class LoginDto {
@@ -15,7 +17,10 @@ export class LoginDto {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly usuarios: UsuariosService,
+  ) {}
 
   @Publico()
   @Post('login')
@@ -28,5 +33,12 @@ export class AuthController {
   @Get('yo')
   yo(@UsuarioActual() usuario: UsuarioSesion) {
     return usuario;
+  }
+
+  /** Cualquier usuario cambia su propia contraseña, confirmando la actual. */
+  @Post('cambiar-clave')
+  @HttpCode(204)
+  async cambiarClave(@Body() dto: CambiarClaveDto, @UsuarioActual() yo: UsuarioSesion) {
+    await this.usuarios.cambiarClavePropia(yo.id, dto.actual, dto.nueva, { id: yo.id });
   }
 }

@@ -32,6 +32,16 @@ export class OperacionDto {
   /** Se valida campo a campo en `verificacion.ts`, según la entidad. */
   @IsObject()
   payload!: Record<string, unknown>;
+
+  /**
+   * Token de quien REGISTRÓ la operación, guardado al encolarla. Puede estar
+   * vencido: solo prueba la autoría. Falta en operaciones encoladas antes de
+   * que existiera este campo; entonces el autor es quien sincroniza.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  autorToken?: string;
 }
 
 export class SyncDto {
