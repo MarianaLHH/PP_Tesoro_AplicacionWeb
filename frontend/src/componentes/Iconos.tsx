@@ -75,3 +75,23 @@ export function IconoSalir({ tamano = 22 }: Props) {
     </svg>
   );
 }
+
+export function IconoOjo({ tamano = 18 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function IconoOjoTachado({ tamano = 18 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes}>
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.16 3.19" />
+      <path d="M6.61 6.61A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.39-1.61" />
+      <line x1="2" y1="2" x2="22" y2="22" />
+    </svg>
+  );
+}

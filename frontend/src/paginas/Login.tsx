@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { iniciarSesion, type Sesion } from '../sesion';
+import CampoClave from '../componentes/CampoClave';
 
 /**
  * Entrada al sistema. Se usa al abrir la app por primera vez en el
@@ -53,8 +54,7 @@ export default function Login({
 
         <label className="campo-bloque">
           <span className="etiqueta">Contraseña</span>
-          <input
-            type="password"
+          <CampoClave
             autoComplete="current-password"
             autoFocus={!!anterior}
             value={password}

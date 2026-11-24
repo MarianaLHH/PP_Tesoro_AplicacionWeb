@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { pedirApi } from '../sesion';
 import Modal from './Modal';
+import CampoClave from './CampoClave';
 
 export const LARGO_MINIMO_CLAVE = 8;
 
@@ -48,8 +49,7 @@ export default function CambiarClave({ onCerrar }: { onCerrar: () => void }) {
     <Modal titulo="Cambiar contraseña" onCerrar={onCerrar} onEnviar={guardar}>
       <label className="campo-bloque">
         <span className="etiqueta">Contraseña actual</span>
-        <input
-          type="password"
+        <CampoClave
           autoComplete="current-password"
           autoFocus
           value={actual}
@@ -58,8 +58,7 @@ export default function CambiarClave({ onCerrar }: { onCerrar: () => void }) {
       </label>
       <label className="campo-bloque">
         <span className="etiqueta">Contraseña nueva</span>
-        <input
-          type="password"
+        <CampoClave
           autoComplete="new-password"
           value={nueva}
           onChange={(e) => setNueva(e.target.value)}
@@ -68,8 +67,7 @@ export default function CambiarClave({ onCerrar }: { onCerrar: () => void }) {
       </label>
       <label className="campo-bloque">
         <span className="etiqueta">Repita la contraseña nueva</span>
-        <input
-          type="password"
+        <CampoClave
           autoComplete="new-password"
           value={repetida}
           onChange={(e) => setRepetida(e.target.value)}
