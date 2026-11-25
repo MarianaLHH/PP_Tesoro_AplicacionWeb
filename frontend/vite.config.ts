@@ -30,5 +30,5 @@ export default defineConfig({
     }),
   ],
   // En desarrollo /api va al backend local; en producción la misma imagen sirve ambos.
-  server: { port: 5173, proxy: { '/api': 'http://localhost:3000' } },
+  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:3000' } },
 });

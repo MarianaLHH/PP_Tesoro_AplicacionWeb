@@ -54,25 +54,45 @@ export default function Inventario() {
 
   const ids = [...seleccion].join(',');
 
+  /** Fino de los lotes marcados, para la barra de acción del celular. */
+  const finoSeleccion = useMemo(() => {
+    let fino = new Decimal(0);
+    for (const lote of lotes ?? []) {
+      if (seleccion.has(lote.id)) fino = fino.plus(lote.pesoFinoG);
+    }
+    return fino.toString();
+  }, [lotes, seleccion]);
+
   return (
     <section>
       <div className="encabezado-pagina bloque">
         <div>
           <h2 className="titulo-pagina">Inventario</h2>
           <p className="ayuda subtitulo">
-            Cada compra es un lote. Marque varios para fundirlos en una sola
-            pieza, o uno o más para venderlos. Ley y fino son estimados: la ley
-            real la mide el comprador.
+            <span className="solo-escritorio">
+              Cada compra es un lote. Marque varios para fundirlos en una sola
+              pieza, o uno o más para venderlos. Ley y fino son estimados: la ley
+              real la mide el comprador.
+            </span>
+            <span className="solo-movil">
+              Toque los lotes para fundirlos o venderlos. Ley y fino son estimados.
+            </span>
           </p>
         </div>
-        <div className="acciones">
+        <div className={`acciones barra-seleccion ${seleccion.size > 0 ? 'visible' : ''}`}>
+          <span className="barra-seleccion-resumen">
+            {seleccion.size} {seleccion.size === 1 ? 'lote' : 'lotes'}
+            <strong>{peso(finoSeleccion)} g fino</strong>
+          </span>
           <button
             type="button"
             disabled={seleccion.size < 2}
             title="Se necesitan al menos dos lotes"
             onClick={() => navegar(`/inventario/fundir?lotes=${ids}`)}
           >
-            Fundir juntos{seleccion.size >= 2 ? ` (${seleccion.size})` : ''}
+            <span className="solo-escritorio">Fundir juntos</span>
+            <span className="solo-movil">Fundir</span>
+            {seleccion.size >= 2 ? ` (${seleccion.size})` : ''}
           </button>
           <button
             type="button"
@@ -149,19 +169,25 @@ export default function Inventario() {
                 checked={seleccion.has(lote.id)}
                 onChange={() => alternar(lote.id)}
               />
-              <span className="codigo">{lote.codigo}</span>
-              <span className="tenue">{fechaCorta(lote.fecha)}</span>
-              <span>
+              <span className="codigo celda-codigo">{lote.codigo}</span>
+              <span className="tenue celda-fecha">{fechaCorta(lote.fecha)}</span>
+              <span className="celda-origen">
                 {lote.origen === 'FUNDICION' && (
                   <span className="insignia">Fundido</span>
                 )}
                 {lote.clientes.join(' + ')}
               </span>
-              <span className="tenue">{peso(lote.pesoBrutoG)}</span>
-              <span className="tenue">{leyPorcentaje(lote.leyEstimada)}</span>
-              <span className="tenue">{peso(lote.pesoFinoG)}</span>
-              <span className="destacado">{importe(lote.costoBs)}</span>
-              <span className={disponible ? 'estado-pendiente' : 'estado-ok'}>
+              <span className="tenue celda-dato celda-peso" data-etiqueta="Peso (g)">
+                {peso(lote.pesoBrutoG)}
+              </span>
+              <span className="tenue celda-dato celda-ley" data-etiqueta="Ley est.">
+                {leyPorcentaje(lote.leyEstimada)}
+              </span>
+              <span className="tenue celda-dato celda-fino" data-etiqueta="Fino (g)">
+                {peso(lote.pesoFinoG)}
+              </span>
+              <span className="destacado celda-costo">{importe(lote.costoBs)}</span>
+              <span className={`celda-estado ${disponible ? 'estado-pendiente' : 'estado-ok'}`}>
                 {ETIQUETA_ESTADO[lote.estado]}
               </span>
             </label>

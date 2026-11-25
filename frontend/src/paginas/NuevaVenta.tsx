@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import CampoFecha from '../componentes/CampoFecha';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type Decimal from 'decimal.js';
@@ -251,14 +252,7 @@ export default function NuevaVenta() {
 
       <div className="campos alineado-arriba">
         <div className="ancho-fecha">
-          <label>
-            <span className="etiqueta">Fecha</span>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-            />
-          </label>
+          <CampoFecha etiqueta="Fecha" valor={fecha} onCambiar={setFecha} />
         </div>
         <div style={{ width: 320 }}>
           <label>

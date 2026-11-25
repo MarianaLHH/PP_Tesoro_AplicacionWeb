@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import CampoFecha from '../componentes/CampoFecha';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { calcularFundicion } from '@tesoro/dominio';
@@ -171,14 +172,7 @@ export default function Fundicion() {
 
       <div className="campos alineado-arriba" style={{ marginTop: 32 }}>
         <div className="ancho-fecha">
-          <label>
-            <span className="etiqueta">Fecha de fundición</span>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-            />
-          </label>
+          <CampoFecha etiqueta="Fecha de fundición" valor={fecha} onCambiar={setFecha} />
         </div>
         <div className="ancho-fecha">
           <label>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { calcularCompraItem, calcularTotalCompra } from '@tesoro/dominio';
 import {
@@ -22,7 +22,9 @@ import {
 } from '../entrada';
 import Decimal from 'decimal.js';
 import { importe, numero } from '../formato';
-import { IconoCruz, IconoMas } from '../componentes/Iconos';
+import { IconoCruz, IconoFlecha, IconoMas } from '../componentes/Iconos';
+import { useEsMovil } from '../movil';
+import CampoFecha from '../componentes/CampoFecha';
 
 /**
  * Fila del formulario, con los pesos y la ley tal como los teclea el operador.
@@ -46,6 +48,13 @@ const filaVacia = (): FilaBorrador => ({
   leyPorcentaje: '',
   observacion: '',
 });
+
+/** Fila sin ningún dato escrito. */
+const filaEnBlanco = (f: FilaBorrador) =>
+  !f.pesoAntesFundirG.trim() &&
+  !f.pesoDespuesFundirG.trim() &&
+  !f.leyPorcentaje.trim() &&
+  !f.observacion.trim();
 
 /** Lo que se entendió de cada campo numérico de una fila. */
 interface LecturaFila {
@@ -146,6 +155,237 @@ function CampoCotizacion({
   );
 }
 
+/** Resultado calculado de una pieza (lo que usa la vista de celular). */
+interface PiezaCalculada {
+  filaId: string;
+  mermaG?: string | null;
+  bsPorGramo: string;
+  totalBs: string;
+  pesoFinoG: string;
+}
+
+/**
+ * Piezas en el celular: una tarjeta corta por pieza y, al tocarla, una hoja
+ * inferior con campos grandes. La rejilla de 8 columnas del escritorio no
+ * cabe en 360 px sin desplazamiento lateral.
+ */
+function PiezasMovil({
+  filas,
+  calculos,
+  lecturaDe,
+  onCambiar,
+  onAgregar,
+  onQuitar,
+}: {
+  filas: FilaBorrador[];
+  calculos: PiezaCalculada[];
+  lecturaDe: (filaId: string) => LecturaFila;
+  onCambiar: (id: string, campo: keyof FilaBorrador, valor: string) => void;
+  onAgregar: () => string;
+  onQuitar: (id: string) => void;
+}) {
+  const [editando, setEditando] = useState<string | null>(null);
+  const indice = filas.findIndex((f) => f.id === editando);
+  const fila = indice >= 0 ? filas[indice] : null;
+
+  useEffect(() => {
+    if (!editando) return;
+    const alTecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditando(null);
+    };
+    document.addEventListener('keydown', alTecla);
+    return () => document.removeEventListener('keydown', alTecla);
+  }, [editando]);
+
+  const calculoDe = (id: string) => calculos.find((c) => c.filaId === id);
+  const lectura = fila ? lecturaDe(fila.id) : null;
+  const calculo = fila ? calculoDe(fila.id) : undefined;
+
+  // Una fila sin nada escrito no se muestra como tarjeta: el único camino para
+  // cargar una pieza es "Agregar pieza", sin una "Pieza 1" vacía de antemano.
+  const visibles = filas.filter((f) => !filaEnBlanco(f));
+  const filaActualEnBlanco = !!fila && filaEnBlanco(fila);
+
+  /** Abre la fila en blanco que ya exista o crea una nueva. */
+  function agregar() {
+    const enBlanco = filas.find(filaEnBlanco);
+    setEditando(enBlanco ? enBlanco.id : onAgregar());
+  }
+
+  const cerrar = () => setEditando(null);
+
+  // Con la hoja cerrada (por Listo, la cruz, el fondo o Escape), las piezas
+  // que quedaron sin datos se descartan; siempre queda al menos una fila.
+  useEffect(() => {
+    if (editando) return;
+    const enBlanco = filas.filter(filaEnBlanco);
+    enBlanco.slice(enBlanco.length === filas.length ? 1 : 0).forEach((f) => onQuitar(f.id));
+  }, [editando, filas, onQuitar]);
+
+  function quitar() {
+    if (!fila) return;
+    if (filas.length > 1) onQuitar(fila.id);
+    else (['pesoAntesFundirG', 'pesoDespuesFundirG', 'leyPorcentaje', 'observacion'] as const)
+      .forEach((campo) => onCambiar(fila.id, campo, ''));
+    setEditando(null);
+  }
+
+  return (
+    <>
+      <div className="piezas-movil-cabecera">
+        <span className="etiqueta">
+          Piezas{visibles.length > 0 ? ` (${visibles.length})` : ''}
+        </span>
+      </div>
+
+      {visibles.map((f) => {
+        const i = filas.indexOf(f);
+        const calc = calculoDe(f.id);
+        const l = lecturaDe(f.id);
+        const conError = !!(l.antes.error || l.despues.error || l.ley.error);
+        return (
+          <button
+            type="button"
+            key={f.id}
+            className={`pieza-movil ${conError ? 'con-error' : ''}`}
+            onClick={() => setEditando(f.id)}
+          >
+            <span className="pieza-movil-linea">
+              <strong>Pieza {i + 1}</strong>
+              {calc ? (
+                <strong className="pieza-movil-total">Bs {importe(calc.totalBs)}</strong>
+              ) : (
+                <span className="estado-pendiente">{conError ? 'Revisar' : 'Tocar para llenar'}</span>
+              )}
+            </span>
+            <span className="pieza-movil-meta">
+              <span>
+                {f.pesoAntesFundirG ? `${f.pesoAntesFundirG} → ` : ''}
+                {f.pesoDespuesFundirG || '—'} g
+              </span>
+              <span>Ley {f.leyPorcentaje || '—'} %</span>
+              {calc && <span>Bs {importe(calc.bsPorGramo)}/g</span>}
+            </span>
+            {f.observacion && <span className="pieza-movil-meta">Obs.: {f.observacion}</span>}
+          </button>
+        );
+      })}
+
+      <button
+        type="button"
+        className={`fantasma agregar-pieza ${visibles.length === 0 ? 'sin-piezas' : ''}`}
+        onClick={agregar}
+      >
+        <IconoMas /> {visibles.length === 0 ? 'Agregar pieza' : 'Agregar otra pieza'}
+      </button>
+
+      {fila && lectura && (
+        <>
+          <div className="fondo-modal" onClick={cerrar} />
+          <div className="hoja-inferior" role="dialog" aria-label={`Pieza ${indice + 1}`}>
+            <span className="hoja-asa" aria-hidden="true" />
+            <div className="cabecera-modal">
+              <h3>Pieza {indice + 1}</h3>
+              <button
+                type="button"
+                className="cerrar"
+                aria-label="Cerrar"
+                onClick={cerrar}
+              >
+                <IconoCruz />
+              </button>
+            </div>
+
+            <div className="hoja-campos">
+              <label>
+                <span className="etiqueta">Peso A/F (g)</span>
+                <input
+                  inputMode="decimal"
+                  placeholder="opcional"
+                  className={claseError(lectura.antes)}
+                  aria-invalid={!!lectura.antes.error}
+                  value={fila.pesoAntesFundirG}
+                  onChange={(e) => onCambiar(fila.id, 'pesoAntesFundirG', e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="etiqueta">Peso D/F (g)</span>
+                <input
+                  inputMode="decimal"
+                  className={claseError(lectura.despues)}
+                  aria-invalid={!!lectura.despues.error}
+                  value={fila.pesoDespuesFundirG}
+                  onChange={(e) => onCambiar(fila.id, 'pesoDespuesFundirG', e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="etiqueta">Ley</span>
+                <span className="campo-porcentaje">
+                  <input
+                    inputMode="decimal"
+                    className={claseError(lectura.ley)}
+                    aria-invalid={!!lectura.ley.error}
+                    value={fila.leyPorcentaje}
+                    onChange={(e) => onCambiar(fila.id, 'leyPorcentaje', e.target.value)}
+                  />
+                  <span aria-hidden="true">%</span>
+                </span>
+              </label>
+              <label>
+                <span className="etiqueta">Observación</span>
+                <input
+                  value={fila.observacion}
+                  onChange={(e) => onCambiar(fila.id, 'observacion', e.target.value)}
+                />
+              </label>
+            </div>
+
+            {[lectura.antes, lectura.despues, lectura.ley]
+              .filter((l) => l.error)
+              .map((l) => (
+                <p key={l.error} className="advertencia">
+                  {l.error}
+                </p>
+              ))}
+
+            <div className="hoja-resumen">
+              <span>
+                Merma<strong>{calculo?.mermaG ?? '—'}</strong>
+              </span>
+              <span>
+                Fino<strong>{calculo ? `${importe(calculo.pesoFinoG)} g` : '—'}</strong>
+              </span>
+              <span>
+                Total pieza
+                <strong className="pieza-movil-total">
+                  {calculo ? `Bs ${importe(calculo.totalBs)}` : '—'}
+                </strong>
+              </span>
+            </div>
+
+            <div className="hoja-acciones">
+              <button type="button" className="fantasma peligro" onClick={quitar}>
+                Quitar
+              </button>
+              <button
+                type="button"
+                className="fantasma"
+                disabled={filaActualEnBlanco}
+                onClick={() => setEditando(onAgregar())}
+              >
+                <IconoMas /> Otra pieza
+              </button>
+              <button type="button" className="primario" onClick={cerrar}>
+                Listo
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 /** Hora actual, refrescada cada 30 s para que "hace X min" avance solo. */
 function useAhora(): number {
   const [ahora, setAhora] = useState(() => Date.now());
@@ -168,6 +408,7 @@ function useAhora(): number {
  */
 export default function NuevaCompra() {
   const navegar = useNavigate();
+  const movil = useEsMovil();
   const cotizacion = useLiveQuery(() => cotizacionVigente(), []);
   const clientes = useLiveQuery(
     () => db.clientes.filter((c) => c.activo).sortBy('nombre'),
@@ -415,19 +656,15 @@ export default function NuevaCompra() {
   return (
     <section>
       <header className="encabezado-pagina">
+        <Link to="/compras" className="volver solo-movil" aria-label="Volver a compras">
+          <IconoFlecha tamano={22} />
+        </Link>
         <h2>Nueva compra</h2>
       </header>
 
       <div className="campos alineado-arriba">
         <div className="ancho-fecha">
-          <label>
-            <span className="etiqueta">Fecha</span>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-            />
-          </label>
+          <CampoFecha etiqueta="Fecha" valor={fecha} onCambiar={setFecha} />
         </div>
 
         <div className="ancho-cliente">
@@ -512,6 +749,13 @@ export default function NuevaCompra() {
                 )}
               </span>
             </p>
+          ) : cotizacionValida ? (
+            <p className="estado-cotizacion modificada">
+              <span className="punto" />
+              <span>
+                Se guardará como <b>primera cotización</b> al registrar
+              </span>
+            </p>
           ) : (
             <p className="estado-cotizacion antigua">
               <span className="punto" />
@@ -528,6 +772,21 @@ export default function NuevaCompra() {
       </div>
 
       <div className="piezas">
+        {movil ? (
+          <PiezasMovil
+            filas={filas}
+            calculos={liquidacion.items}
+            lecturaDe={lecturaDe}
+            onCambiar={actualizarFila}
+            onAgregar={() => {
+              const nueva = filaVacia();
+              setFilas((prev) => [...prev, nueva]);
+              return nueva.id;
+            }}
+            onQuitar={(id) => setFilas((prev) => prev.filter((f) => f.id !== id))}
+          />
+        ) : (
+          <>
         <div className="rejilla-piezas cabecera">
           <span className="th">Peso A/F</span>
           <span className="th">Peso D/F</span>
@@ -612,6 +871,8 @@ export default function NuevaCompra() {
         >
           + Agregar pieza
         </button>
+          </>
+        )}
       </div>
 
       {liquidacion.errores.length > 0 && (
@@ -638,7 +899,7 @@ export default function NuevaCompra() {
         <div className="acciones">
           <button
             type="button"
-            className="fantasma"
+            className="fantasma solo-escritorio"
             onClick={() => navegar('/compras')}
           >
             Cancelar

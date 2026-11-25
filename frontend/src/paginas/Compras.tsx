@@ -18,7 +18,34 @@ export default function Compras() {
         </Link>
       </header>
 
-      <table>
+      {/* Celular: tarjetas en lugar de la tabla (ver estilos.css). */}
+      <ul className="lista-movil">
+        {compras?.map((c) => {
+          const sync = estadoSync(c.estadoSync);
+          return (
+            <li key={c.id} className={`tarjeta-movil ${c.estado === 'ANULADA' ? 'anulada' : ''}`}>
+              <span className="tarjeta-movil-linea tenue">
+                <span>
+                  {c.numero ? `COM-${String(c.numero).padStart(6, '0')}` : c.numeroLocal} ·{' '}
+                  {fechaCorta(c.fecha)}
+                </span>
+                <span className={`pastilla ${sync.clase}`}>{sync.texto}</span>
+              </span>
+              <strong className="tarjeta-movil-titulo">{c.clienteNombre}</strong>
+              <span className="tarjeta-movil-linea tenue">
+                <span>
+                  {c.items.length} {c.items.length === 1 ? 'pieza' : 'piezas'}
+                  {c.estado === 'ANULADA' && ' · anulada'}
+                </span>
+                <strong className="tarjeta-movil-importe">Bs {importe(c.totalBs)}</strong>
+              </span>
+            </li>
+          );
+        })}
+        {compras?.length === 0 && <li className="vacio">Todavía no hay compras registradas.</li>}
+      </ul>
+
+      <table className="solo-escritorio">
         <thead>
           <tr>
             <th>Número</th>
