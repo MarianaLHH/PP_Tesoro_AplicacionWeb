@@ -1355,3 +1355,762 @@ button.compacto {
 .boton-ojo:focus-visible {
   color: var(--oro);
 }
+
+/* ============================================================ selector de fecha */
+
+.campo-fecha {
+  position: relative;
+}
+
+.campo-fecha-boton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.campo-fecha-boton svg {
+  color: var(--texto-tenue);
+  flex-shrink: 0;
+}
+
+.calendario {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 150;
+  width: 296px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.calendario-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.calendario-cabecera strong {
+  font-size: 15px;
+}
+
+.calendario-cabecera button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--texto);
+}
+
+.calendario-cabecera .girar {
+  display: flex;
+  transform: rotate(180deg);
+}
+
+.calendario-rejilla {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.calendario-dia-semana {
+  padding: 4px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--texto-tenue);
+}
+
+.calendario-dia {
+  height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendario-dia.hoy {
+  border-color: var(--borde-fuerte);
+  color: var(--oro);
+}
+
+.calendario-dia.elegido,
+.calendario-dia.elegido:hover:not(:disabled) {
+  background: var(--oro);
+  border-color: var(--oro);
+  color: #1a1408;
+  font-weight: 700;
+}
+
+.calendario-pie {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ============================================================ interfaz de celular
+ * Hasta 720 px (debe coincidir con CONSULTA_MOVIL en movil.ts): menú abajo,
+ * listados en tarjetas y formularios sin desplazamiento lateral.
+ * Fuera de este @media solo se ocultan las piezas exclusivas del celular. */
+
+.nav-movil,
+.lista-movil,
+.solo-movil,
+.barra-seleccion-resumen {
+  display: none;
+}
+
+.hoja-inferior {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 201;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
+  background: var(--panel);
+  border-top: 1px solid var(--borde-fuerte);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.hoja-asa {
+  align-self: center;
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--borde-fuerte);
+}
+
+.hoja-opcion {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+  border-bottom: 1px solid var(--borde);
+  color: var(--texto);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.hoja-opcion:last-child {
+  border-bottom: none;
+}
+
+.hoja-opcion:hover {
+  color: var(--texto);
+}
+
+.hoja-opcion-texto {
+  flex: 1;
+}
+
+.hoja-opcion.active .hoja-opcion-texto {
+  color: var(--oro);
+}
+
+.hoja-opcion > svg {
+  color: var(--texto-tenue);
+}
+
+.hoja-opcion-icono {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--superficie-alta);
+  color: var(--oro);
+}
+
+.peligro {
+  color: var(--rojo);
+  border-color: rgba(224, 104, 95, 0.4);
+}
+
+@media (max-width: 720px) {
+  .solo-escritorio {
+    display: none !important;
+  }
+
+  .solo-movil {
+    display: inline;
+  }
+
+  /* Evita el zoom automático del navegador al enfocar un campo (< 16 px). */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* ---------------------------------------------------- cabecera y menú */
+
+  .barra {
+    padding-top: 10px;
+    gap: 8px 12px;
+  }
+
+  .barra h1 {
+    font-size: 20px;
+  }
+
+  .barra nav {
+    display: none;
+  }
+
+  .estado-conexion {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px 10px;
+    font-size: 12px;
+  }
+
+  .separador-barra {
+    margin-top: 10px;
+  }
+
+  main {
+    padding-top: 20px;
+  }
+
+  .app.con-nav-movil main {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  .app.en-formulario main {
+    padding-bottom: 0;
+  }
+
+  .nav-movil {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: center;
+    height: calc(68px + env(safe-area-inset-bottom));
+    padding: 0 6px env(safe-area-inset-bottom);
+    background: var(--panel);
+    border-top: 1px solid var(--borde);
+  }
+
+  .nav-movil > a,
+  .nav-movil > button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 56px;
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--texto-tenue);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .nav-movil > button:hover:not(:disabled) {
+    background: transparent;
+  }
+
+  .nav-movil > a.active,
+  .nav-movil > button.active {
+    color: var(--oro);
+  }
+
+  .nav-movil > a.nav-movil-nuevo {
+    justify-self: center;
+    width: 56px;
+    height: 56px;
+    min-height: 0;
+    margin-top: -26px;
+    border-radius: 50%;
+    background: var(--oro);
+    color: #1a1408;
+    box-shadow: 0 0 0 6px var(--fondo);
+  }
+
+  /* ---------------------------------------------------- encabezados */
+
+  .encabezado-pagina {
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+
+  .encabezado-pagina h2,
+  .titulo-pagina {
+    font-size: 23px;
+  }
+
+  .subtitulo {
+    margin-bottom: 18px;
+  }
+
+  .solo-movil.volver {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: -8px -6px -8px -12px;
+    color: var(--texto);
+  }
+
+  .volver svg {
+    transform: rotate(180deg);
+  }
+
+  /* ---------------------------------------------------- listados en tarjetas */
+
+  .lista-movil {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tarjeta-movil {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+
+  .tarjeta-movil.anulada {
+    opacity: 0.55;
+  }
+
+  .tarjeta-movil-linea {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+  }
+
+  .tarjeta-movil .tenue {
+    color: var(--texto-tenue);
+  }
+
+  .tarjeta-movil-titulo {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .tarjeta-movil-importe {
+    font-size: 17px;
+    color: var(--oro);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .pastilla {
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--superficie-alta);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* ---------------------------------------------------- inventario */
+
+  .tarjetas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .tarjeta {
+    min-width: 0;
+  }
+
+  .tarjeta:last-child {
+    grid-column: span 2;
+  }
+
+  .filtros {
+    display: flex;
+  }
+
+  .filtros button {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .rejilla-inventario {
+    min-width: 0;
+  }
+
+  .rejilla-inventario.cabecera {
+    display: none;
+  }
+
+  .rejilla-inventario.fila {
+    grid-template-columns: 34px repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      'check codigo codigo fecha'
+      'check origen origen origen'
+      'check peso ley fino'
+      'check costo costo estado';
+    gap: 8px 10px;
+    margin-bottom: 10px;
+    padding: 14px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+
+  .rejilla-inventario.fila.marcado {
+    border-color: var(--oro);
+  }
+
+  .rejilla-inventario.fila > input {
+    grid-area: check;
+    align-self: start;
+    width: 22px;
+    height: 22px;
+  }
+
+  .celda-codigo {
+    grid-area: codigo;
+    font-size: 15px;
+  }
+
+  .celda-fecha {
+    grid-area: fecha;
+    text-align: right;
+    font-size: 13px;
+  }
+
+  .celda-origen {
+    grid-area: origen;
+    font-weight: 500;
+  }
+
+  .celda-dato {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    color: var(--texto) !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .celda-dato::before {
+    content: attr(data-etiqueta);
+    font-size: 11px;
+    color: var(--texto-tenue);
+  }
+
+  .celda-peso {
+    grid-area: peso;
+  }
+
+  .celda-ley {
+    grid-area: ley;
+  }
+
+  .celda-fino {
+    grid-area: fino;
+    color: var(--oro) !important;
+  }
+
+  .celda-costo {
+    grid-area: costo;
+  }
+
+  .celda-costo::before {
+    content: 'Costo Bs ';
+    font-weight: 400;
+    color: var(--texto-tenue);
+  }
+
+  .celda-estado {
+    grid-area: estado;
+    text-align: right;
+  }
+
+  /* Fundir / Vender: barra flotante sobre el menú cuando hay lotes marcados. */
+  .encabezado-pagina.bloque > .barra-seleccion {
+    display: none;
+  }
+
+  .encabezado-pagina.bloque > .barra-seleccion.visible {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 10px 10px 16px;
+    border: 1px solid var(--borde-fuerte);
+    border-radius: 16px;
+    background: var(--superficie-alta);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .barra-seleccion .barra-seleccion-resumen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+
+  .barra-seleccion-resumen strong {
+    font-size: 15px;
+    color: var(--texto);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .barra-seleccion button {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+
+  .app.con-nav-movil main:has(.barra-seleccion.visible) {
+    padding-bottom: calc(170px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------------------------------------------------- formularios largos */
+
+  .campos.alineado-arriba,
+  .piezas,
+  .observacion-general {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0 0 12px;
+    padding: 16px;
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+
+  .campos.alineado-arriba > * {
+    flex: none;
+  }
+
+  .campos-cotizacion {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .campo-cotizacion {
+    width: auto;
+    min-width: 0;
+  }
+
+  .piezas {
+    gap: 10px;
+  }
+
+  .piezas-movil-cabecera .etiqueta {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .pieza-movil {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    background: var(--superficie);
+    color: var(--texto);
+    text-align: left;
+    font: inherit;
+  }
+
+  .pieza-movil.con-error {
+    border-color: var(--rojo);
+  }
+
+  .pieza-movil-linea {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 15px;
+  }
+
+  .pieza-movil-total {
+    color: var(--oro);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pieza-movil-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 13px;
+    color: var(--texto-tenue);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .agregar-pieza {
+    min-height: 50px;
+    border-style: dashed;
+    border-color: var(--borde-fuerte);
+    border-radius: 12px;
+    color: var(--oro);
+    font-weight: 600;
+  }
+
+  /* Sin piezas todavía: el botón es la única entrada y ocupa más. */
+  .agregar-pieza.sin-piezas {
+    min-height: 76px;
+    font-size: 15px;
+    background: var(--oro-suave);
+  }
+
+  .hoja-inferior .cabecera-modal {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .hoja-campos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .hoja-campos input {
+    height: 50px;
+    font-size: 17px;
+  }
+
+  .hoja-campos .campo-porcentaje {
+    display: block;
+  }
+
+  .hoja-resumen {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--borde-fuerte);
+    border-radius: 12px;
+    background: var(--oro-suave);
+  }
+
+  .hoja-resumen > span {
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    color: var(--texto-tenue);
+  }
+
+  .hoja-resumen strong {
+    font-size: 15px;
+    color: var(--texto);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hoja-resumen strong.pieza-movil-total {
+    color: var(--oro);
+  }
+
+  .hoja-acciones {
+    display: flex;
+    gap: 10px;
+  }
+
+  .hoja-acciones button {
+    min-height: 50px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-left: 12px;
+    padding-right: 12px;
+    white-space: nowrap;
+  }
+
+  .hoja-acciones .primario {
+    flex: 1;
+  }
+
+  /* Total y botón de guardar siempre a la vista. */
+  .pie-compra {
+    position: sticky;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin: 20px -16px 0;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--borde-fuerte);
+  }
+
+  .pie-compra .total {
+    justify-content: space-between;
+  }
+
+  .pie-compra .total strong {
+    font-size: 22px;
+  }
+
+  .pie-compra .acciones {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .pie-compra .acciones button {
+    min-height: 50px;
+    padding: 0 12px;
+  }
+}

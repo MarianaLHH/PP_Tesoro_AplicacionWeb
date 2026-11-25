@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
+import { NavLink, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { useTema } from './tema';
@@ -18,6 +18,10 @@ import Fundicion from './paginas/Fundicion';
 import Login from './paginas/Login';
 import Usuarios from './paginas/Usuarios';
 import CambiarClave from './componentes/CambiarClave';
+import NavegacionMovil from './componentes/NavegacionMovil';
+
+/** Formularios a pantalla completa: en celular ocultan la barra inferior. */
+const RUTAS_FORMULARIO = ['/compras/nueva', '/ventas/nueva', '/inventario/fundir'];
 
 /** Cada cuánto se reintenta el envío mientras haya algo en la cola. */
 const INTERVALO_SYNC_MS = 30_000;
@@ -191,6 +195,8 @@ function Principal({ sesion }: { sesion: Sesion }) {
   const [reentrando, setReentrando] = useState(false);
   // Solo decide qué se muestra: el servidor vuelve a comprobar el rol.
   const esAdmin = sesion.usuario.rol === 'ADMIN';
+  const { pathname } = useLocation();
+  const enFormulario = RUTAS_FORMULARIO.includes(pathname);
   useSincronizacion(sesion, enLinea, pendientes);
 
   useEffect(() => {
@@ -202,7 +208,7 @@ function Principal({ sesion }: { sesion: Sesion }) {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${enFormulario ? 'en-formulario' : 'con-nav-movil'}`}>
       <header className="barra">
         <h1>Tesoro</h1>
         <nav>
@@ -242,6 +248,8 @@ function Principal({ sesion }: { sesion: Sesion }) {
           {esAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         </Routes>
       </main>
+
+      {!enFormulario && <NavegacionMovil esAdmin={esAdmin} />}
     </div>
   );
 }

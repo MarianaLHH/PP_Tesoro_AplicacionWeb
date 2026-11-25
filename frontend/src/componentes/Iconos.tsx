@@ -95,3 +95,92 @@ export function IconoOjoTachado({ tamano = 18 }: Props) {
     </svg>
   );
 }
+
+/* ---------------------------------------------- navegación móvil */
+
+export function IconoCompras({ tamano = 22 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <path d="M5 7h14l-1.2 12H6.2Z" />
+      <path d="M9 7a3 3 0 0 1 6 0" />
+    </svg>
+  );
+}
+
+export function IconoInventario({ tamano = 22 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <path d="M3 8l9-5 9 5v8l-9 5-9-5Z" />
+      <path d="M3 8l9 5 9-5M12 13v8" />
+    </svg>
+  );
+}
+
+export function IconoVentas({ tamano = 22 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M15 7h6v6" />
+    </svg>
+  );
+}
+
+export function IconoMenu({ tamano = 22 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+export function IconoReloj({ tamano = 20 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+export function IconoGrafico({ tamano = 20 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
+    </svg>
+  );
+}
+
+export function IconoPersonas({ tamano = 20 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5" />
+      <path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .6 3.5 2.4 3.5 5.5" />
+    </svg>
+  );
+}
+
+export function IconoEscudo({ tamano = 20 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6Z" />
+    </svg>
+  );
+}
+
+export function IconoCalendario({ tamano = 18 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes} strokeWidth={1.8}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
+export function IconoFlecha({ tamano = 18 }: Props) {
+  return (
+    <svg width={tamano} height={tamano} {...comunes}>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
