@@ -54,15 +54,6 @@ export default function Inventario() {
 
   const ids = [...seleccion].join(',');
 
-  /** Fino de los lotes marcados, para la barra de acción del celular. */
-  const finoSeleccion = useMemo(() => {
-    let fino = new Decimal(0);
-    for (const lote of lotes ?? []) {
-      if (seleccion.has(lote.id)) fino = fino.plus(lote.pesoFinoG);
-    }
-    return fino.toString();
-  }, [lotes, seleccion]);
-
   return (
     <section>
       <div className="encabezado-pagina bloque">
@@ -79,11 +70,13 @@ export default function Inventario() {
             </span>
           </p>
         </div>
-        <div className={`acciones barra-seleccion ${seleccion.size > 0 ? 'visible' : ''}`}>
-          <span className="barra-seleccion-resumen">
-            {seleccion.size} {seleccion.size === 1 ? 'lote' : 'lotes'}
-            <strong>{peso(finoSeleccion)} g fino</strong>
-          </span>
+        {/* En el celular es una barra fija sobre el menú: visible siempre que
+            haya lotes en stock, para que se sepa dónde están las acciones. */}
+        <div
+          className={`acciones barra-seleccion ${
+            resumen.cantidad > 0 || seleccion.size > 0 ? 'visible' : ''
+          }`}
+        >
           <button
             type="button"
             disabled={seleccion.size < 2}

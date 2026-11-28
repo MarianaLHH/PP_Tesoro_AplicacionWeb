@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CampoFecha from '../componentes/CampoFecha';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEsMovil } from '../movil';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type Decimal from 'decimal.js';
 import { calcularVentaDeLotes } from '@tesoro/dominio';
@@ -14,7 +15,7 @@ import {
 } from '../db/db';
 import { claseError, leerLey, leerNumero, type Lectura } from '../entrada';
 import { importe, leyPorcentaje, numero, peso as formatearPeso } from '../formato';
-import { IconoCruz } from '../componentes/Iconos';
+import { IconoCruz, IconoFlecha } from '../componentes/Iconos';
 
 /** Peso y ley de una fila tal como se entendieron. */
 interface LecturaFila {
@@ -37,6 +38,214 @@ const filaDe = (lote: Lote): FilaVenta => ({
   leyPorcentaje: '',
 });
 
+/** Lo calculado para un lote de la venta (null mientras falten datos). */
+interface CalculoLote {
+  pesoFinoG: Decimal;
+  bsPorGramo: Decimal;
+  totalBs: Decimal;
+  gananciaBs: Decimal;
+}
+
+const claseGanancia = (valor: Decimal) => (valor.isNegative() ? 'negativo' : 'positivo');
+
+/**
+ * Lotes de la venta en el celular: una tarjeta por lote y, al tocarla, una
+ * hoja inferior para el peso y la ley del comprador. La rejilla de 11
+ * columnas del escritorio no cabe sin desplazamiento lateral.
+ */
+function LotesVentaMovil({
+  filas,
+  lotesPorId,
+  calculoDe,
+  lecturaDe,
+  onCambiar,
+  onQuitar,
+}: {
+  filas: FilaVenta[];
+  lotesPorId: Map<string, Lote>;
+  calculoDe: (indice: number) => CalculoLote | undefined;
+  lecturaDe: (loteId: string) => LecturaFila;
+  onCambiar: (loteId: string, campo: 'pesoG' | 'leyPorcentaje', valor: string) => void;
+  onQuitar: (loteId: string) => void;
+}) {
+  const [editando, setEditando] = useState<string | null>(null);
+  const indice = filas.findIndex((f) => f.loteId === editando);
+  const fila = indice >= 0 ? filas[indice] : null;
+  const lote = fila ? lotesPorId.get(fila.loteId) : undefined;
+
+  useEffect(() => {
+    if (!editando) return;
+    const alTecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditando(null);
+    };
+    document.addEventListener('keydown', alTecla);
+    return () => document.removeEventListener('keydown', alTecla);
+  }, [editando]);
+
+  return (
+    <>
+      <div className="piezas-movil-cabecera">
+        <span className="etiqueta">Lotes ({filas.length})</span>
+      </div>
+
+      {filas.map((f, i) => {
+        const l = lotesPorId.get(f.loteId);
+        if (!l) return null;
+        const r = calculoDe(i);
+        const lectura = lecturaDe(f.loteId);
+        const conError = !!(lectura.peso.error || lectura.ley.error);
+        return (
+          <button
+            type="button"
+            key={f.loteId}
+            className={`pieza-movil ${conError ? 'con-error' : ''}`}
+            onClick={() => setEditando(f.loteId)}
+          >
+            <span className="pieza-movil-linea">
+              <strong className="codigo">{l.codigo}</strong>
+              {r ? (
+                <strong className="pieza-movil-total">Bs {importe(r.totalBs.toString())}</strong>
+              ) : (
+                <span className="estado-pendiente">
+                  {conError ? 'Revisar' : f.leyPorcentaje ? 'Calculando…' : 'Falta la ley'}
+                </span>
+              )}
+            </span>
+            <span className="pieza-movil-meta">
+              <span>{l.clientes.join(' + ')}</span>
+            </span>
+            <span className="pieza-movil-meta">
+              <span>{f.pesoG || '—'} g</span>
+              <span>Ley {f.leyPorcentaje || '—'} %</span>
+              {r && (
+                <span className={claseGanancia(r.gananciaBs)}>
+                  Ganancia Bs {importe(r.gananciaBs.toString())}
+                </span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+
+      {filas.length === 0 && (
+        <div className="vacio">
+          Agregue los lotes a vender por su código, o márquelos en Inventario.
+        </div>
+      )}
+
+      {fila && lote && (
+        <>
+          <div className="fondo-modal" onClick={() => setEditando(null)} />
+          <div className="hoja-inferior" role="dialog" aria-label={`Lote ${lote.codigo}`}>
+            <span className="hoja-asa" aria-hidden="true" />
+            <div className="cabecera-modal">
+              <h3>
+                Lote <span className="codigo">{lote.codigo}</span>
+              </h3>
+              <button
+                type="button"
+                className="cerrar"
+                aria-label="Cerrar"
+                onClick={() => setEditando(null)}
+              >
+                <IconoCruz />
+              </button>
+            </div>
+            <p className="nota" style={{ margin: 0 }}>
+              {lote.clientes.join(' + ')} · Ley estimada {leyPorcentaje(lote.leyEstimada)} ·
+              Costo Bs {importe(lote.costoBs)}
+            </p>
+
+            <div className="hoja-campos">
+              <label>
+                <span className="etiqueta">Peso (g)</span>
+                <input
+                  inputMode="decimal"
+                  className={claseError(lecturaDe(fila.loteId).peso)}
+                  aria-invalid={!!lecturaDe(fila.loteId).peso.error}
+                  value={fila.pesoG}
+                  onChange={(e) => onCambiar(fila.loteId, 'pesoG', e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="etiqueta">Ley comprador</span>
+                <span className="campo-porcentaje">
+                  <input
+                    inputMode="decimal"
+                    className={claseError(lecturaDe(fila.loteId).ley)}
+                    aria-invalid={!!lecturaDe(fila.loteId).ley.error}
+                    value={fila.leyPorcentaje}
+                    onChange={(e) => onCambiar(fila.loteId, 'leyPorcentaje', e.target.value)}
+                  />
+                  <span aria-hidden="true">%</span>
+                </span>
+              </label>
+            </div>
+
+            {[lecturaDe(fila.loteId).peso, lecturaDe(fila.loteId).ley]
+              .filter((l) => l.error)
+              .map((l) => (
+                <p key={l.error} className="advertencia">
+                  {l.error}
+                </p>
+              ))}
+
+            {(() => {
+              const r = calculoDe(indice);
+              return (
+                <div className="hoja-resumen">
+                  <span>
+                    Fino<strong>{r ? `${formatearPeso(r.pesoFinoG.toString())} g` : '—'}</strong>
+                  </span>
+                  <span>
+                    Bs por gramo<strong>{r ? importe(r.bsPorGramo.toString()) : '—'}</strong>
+                  </span>
+                  <span>
+                    Total lote
+                    <strong className="pieza-movil-total">
+                      {r ? `Bs ${importe(r.totalBs.toString())}` : '—'}
+                    </strong>
+                  </span>
+                  <span>
+                    Costo<strong>Bs {importe(lote.costoBs)}</strong>
+                  </span>
+                  <span>
+                    Ganancia
+                    <strong className={r ? claseGanancia(r.gananciaBs) : ''}>
+                      {r ? `Bs ${importe(r.gananciaBs.toString())}` : '—'}
+                    </strong>
+                  </span>
+                </div>
+              );
+            })()}
+            {!calculoDe(indice) && (
+              <p className="nota" style={{ margin: 0 }}>
+                Los importes se calculan cuando todos los lotes tienen ley y hay onza y T/C.
+              </p>
+            )}
+
+            <div className="hoja-acciones">
+              <button
+                type="button"
+                className="fantasma peligro"
+                onClick={() => {
+                  onQuitar(fila.loteId);
+                  setEditando(null);
+                }}
+              >
+                Quitar
+              </button>
+              <button type="button" className="primario" onClick={() => setEditando(null)}>
+                Listo
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 /**
  * Venta de lotes completos al comprador final.
  *
@@ -47,6 +256,7 @@ const filaDe = (lote: Lote): FilaVenta => ({
  */
 export default function NuevaVenta() {
   const navegar = useNavigate();
+  const movil = useEsMovil();
   const [parametros] = useSearchParams();
 
   const disponibles = useLiveQuery(
@@ -85,6 +295,28 @@ export default function NuevaVenta() {
 
   const elegidos = new Set(filas.map((f) => f.loteId));
   const restantes = (disponibles ?? []).filter((l) => !elegidos.has(l.id));
+
+  /**
+   * Sugerencias propias en lugar de `<datalist>`: la lista nativa la dibuja
+   * el navegador fuera de la página y en algunos equipos queda mal ubicada.
+   */
+  const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
+  const textoBuscado = codigo.trim().toUpperCase();
+  const sugerencias = restantes
+    .filter(
+      (l) =>
+        !textoBuscado ||
+        l.codigo.includes(textoBuscado) ||
+        l.clientes.some((c) => c.toUpperCase().includes(textoBuscado)),
+    )
+    .slice(0, 8);
+
+  function agregarLote(lote: Lote) {
+    setFilas((prev) => [...prev, filaDe(lote)]);
+    setAvisoCodigo('');
+    setCodigo('');
+    setSugerenciasAbiertas(false);
+  }
 
   /** Agrega por código: funciona tecleando o con la pistola lectora. */
   function agregarPorCodigo() {
@@ -238,12 +470,14 @@ export default function NuevaVenta() {
     }
   }
 
-  const claseGanancia = (valor: Decimal) =>
-    valor.isNegative() ? 'negativo' : 'positivo';
-
   return (
     <section>
-      <h2 className="titulo-pagina">Nueva venta</h2>
+      <div className="titulo-con-volver">
+        <Link to="/ventas" className="volver solo-movil" aria-label="Volver a ventas">
+          <IconoFlecha tamano={22} />
+        </Link>
+        <h2 className="titulo-pagina">Nueva venta</h2>
+      </div>
       <p className="ayuda subtitulo">
         Los lotes se venden completos. La onza, el tipo de cambio y la ley de
         cada pieza los define el comprador: se registran aquí y quedan
@@ -293,6 +527,16 @@ export default function NuevaVenta() {
       </div>
 
       <div className="piezas">
+        {movil ? (
+          <LotesVentaMovil
+            filas={filas}
+            lotesPorId={lotesPorId}
+            calculoDe={(i) => resultado?.items[i]}
+            lecturaDe={lecturaDe}
+            onCambiar={actualizarFila}
+            onQuitar={(id) => setFilas((prev) => prev.filter((f) => f.loteId !== id))}
+          />
+        ) : (
         <div className="rejilla-scroll">
           <div className="rejilla-venta-lotes cabecera">
             <span className="th">Lote</span>
@@ -374,28 +618,54 @@ export default function NuevaVenta() {
             </div>
           )}
         </div>
+        )}
 
         <div className="agregar-lote">
-          <input
-            list="lotes-en-caja"
-            placeholder="Código de lote (escanear o escribir)"
-            aria-label="Código de lote"
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                agregarPorCodigo();
-              }
-            }}
-          />
-          <datalist id="lotes-en-caja">
-            {restantes.map((l) => (
-              <option key={l.id} value={l.codigo}>
-                {l.clientes.join(' + ')} · {formatearPeso(l.pesoBrutoG)} g
-              </option>
-            ))}
-          </datalist>
+          <div className="buscador-lote">
+            <input
+              placeholder="Código de lote (escanear o escribir)"
+              aria-label="Código de lote"
+              role="combobox"
+              aria-expanded={sugerenciasAbiertas && sugerencias.length > 0}
+              aria-controls="sugerencias-lote"
+              autoComplete="off"
+              value={codigo}
+              onFocus={() => setSugerenciasAbiertas(true)}
+              onBlur={() => setSugerenciasAbiertas(false)}
+              onChange={(e) => {
+                setCodigo(e.target.value);
+                setSugerenciasAbiertas(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  agregarPorCodigo();
+                  setSugerenciasAbiertas(false);
+                } else if (e.key === 'Escape') {
+                  setSugerenciasAbiertas(false);
+                }
+              }}
+            />
+            {sugerenciasAbiertas && sugerencias.length > 0 && (
+              <ul className="sugerencias-lote" id="sugerencias-lote" role="listbox">
+                {sugerencias.map((l) => (
+                  <li key={l.id} role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      // mousedown antes del blur del campo, para no perder el clic.
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => agregarLote(l)}
+                    >
+                      <span className="codigo">{l.codigo}</span>
+                      <span className="tenue">
+                        {l.clientes.join(' + ')} · {formatearPeso(l.pesoBrutoG)} g
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button type="button" disabled={!codigo.trim()} onClick={agregarPorCodigo}>
             Agregar
           </button>
@@ -458,7 +728,7 @@ export default function NuevaVenta() {
         <div className="acciones">
           <button
             type="button"
-            className="fantasma"
+            className="fantasma solo-escritorio"
             onClick={() => navegar('/ventas')}
           >
             Cancelar
