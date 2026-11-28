@@ -1477,8 +1477,7 @@ button.compacto {
 
 .nav-movil,
 .lista-movil,
-.solo-movil,
-.barra-seleccion-resumen {
+.solo-movil {
   display: none;
 }
 
@@ -1554,6 +1553,64 @@ button.compacto {
 .peligro {
   color: var(--rojo);
   border-color: rgba(224, 104, 95, 0.4);
+}
+
+/* Buscador de lotes con sugerencias propias (reemplaza a <datalist>). */
+.buscador-lote {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.sugerencias-lote {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 150;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.sugerencias-lote button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+}
+
+.sugerencias-lote button:hover:not(:disabled) {
+  background: var(--superficie-alta);
+}
+
+.sugerencias-lote .tenue {
+  font-size: 13px;
+  color: var(--texto-tenue);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.titulo-con-volver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 720px) {
@@ -1881,33 +1938,21 @@ button.compacto {
     right: 12px;
     bottom: calc(80px + env(safe-area-inset-bottom));
     z-index: 90;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 10px 10px 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 10px;
     border: 1px solid var(--borde-fuerte);
     border-radius: 16px;
     background: var(--superficie-alta);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
 
-  .barra-seleccion .barra-seleccion-resumen {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    font-size: 12px;
-    color: var(--texto-tenue);
-  }
-
-  .barra-seleccion-resumen strong {
-    font-size: 15px;
-    color: var(--texto);
-    font-variant-numeric: tabular-nums;
-  }
-
   .barra-seleccion button {
-    min-height: 44px;
-    padding: 0 16px;
+    min-height: 50px;
+    padding: 0 12px;
+    font-size: 15px;
+    font-weight: 600;
   }
 
   .app.con-nav-movil main:has(.barra-seleccion.visible) {
@@ -1929,8 +1974,36 @@ button.compacto {
     background: var(--panel);
   }
 
+  /* Algunos campos traen un ancho fijo en línea (p. ej. 320 px en ventas). */
   .campos.alineado-arriba > * {
     flex: none;
+    width: 100% !important;
+  }
+
+  .agregar-lote {
+    max-width: none;
+    align-items: flex-start;
+  }
+
+  .agregar-lote > button {
+    min-height: 48px;
+  }
+
+  /* La tarjeta crece con la lista: sin caja con desplazamiento propio. */
+  .piezas {
+    overflow: visible;
+  }
+
+  .sugerencias-lote {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    margin-top: 8px;
+    box-shadow: none;
+  }
+
+  .sugerencias-lote button {
+    min-height: 48px;
   }
 
   .campos-cotizacion {

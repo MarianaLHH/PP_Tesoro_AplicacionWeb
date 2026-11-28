@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { calcularBsPorGramo } from '@tesoro/dominio';
 import { db } from '../db/db';
@@ -38,9 +37,6 @@ export default function Cotizacion() {
           Historial de la onza y el tipo de cambio. Para actualizarlos, cámbielos
           al registrar una nueva compra.
         </p>
-        <Link className="primario boton" to="/compras/nueva">
-          Nueva compra
-        </Link>
       </header>
 
       <table>

@@ -586,13 +586,13 @@ export default function NuevaCompra() {
 
   /** Da de alta al cliente y lo deja seleccionado en esta misma compra. */
   async function guardarCliente() {
-    if (!nuevoNombre.trim() || !nuevoCi.trim() || guardandoCliente) return;
+    if (!nuevoNombre.trim() || guardandoCliente) return;
     setGuardandoCliente(true);
     try {
       const cliente = {
         id: crypto.randomUUID(),
         nombre: nuevoNombre.trim(),
-        ci: nuevoCi.trim(),
+        ci: nuevoCi.trim() || undefined,
         telefono: nuevoTelefono.trim() || undefined,
         activo: true,
         actualizadoEn: new Date().toISOString(),
@@ -954,7 +954,7 @@ export default function NuevaCompra() {
 
             <div className="fila-campos campo-bloque">
               <div>
-                <span className="etiqueta">CI / NIT</span>
+                <span className="etiqueta">CI / NIT (opcional)</span>
                 <input
                   placeholder="0000000 LP"
                   value={nuevoCi}
@@ -988,9 +988,7 @@ export default function NuevaCompra() {
               <button
                 type="button"
                 className="primario"
-                disabled={
-                  !nuevoNombre.trim() || !nuevoCi.trim() || guardandoCliente
-                }
+                disabled={!nuevoNombre.trim() || guardandoCliente}
                 onClick={guardarCliente}
               >
                 {guardandoCliente ? 'Guardando…' : 'Guardar y usar cliente'}
